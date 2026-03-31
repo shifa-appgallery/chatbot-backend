@@ -11,33 +11,31 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
     const { name, participantIds = [], isGroup } = req.body;
 
-    const currentUserId = String(req.user!.id);
+    const currentUser = req.user!;
+    const currentUserId = String(currentUser.id);
 
-    // ❌ Empty participants
     if (!participantIds.length) {
       return res.status(400).json({
         message: "participantIds are required"
       });
     }
 
-    // ❌ Prevent self-add
     if (participantIds.map(String).includes(currentUserId)) {
       return res.status(400).json({
         message: "You cannot add yourself"
       });
     }
 
-    // ✅ Convert all IDs to string (IMPORTANT)
     const formattedParticipantIds = participantIds.map((id: any) => String(id));
 
-    // ✅ Validate users from MySQL
-    const users = await User.findAll({
+    // ✅ Fetch users from MySQL
+    const users: any = await User.findAll({
       where: {
         id: {
           [Op.in]: formattedParticipantIds
         }
       },
-      attributes: ["id"]
+      attributes: ["id", "first_name", "last_name", "profile_picture"]
     });
 
     if (users.length !== formattedParticipantIds.length) {
@@ -46,7 +44,11 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // ✅ Include current user
+    const userMap: Record<string, any> = {};
+    users.forEach((user: any) => {
+      userMap[String(user.id)] = user;
+    });
+
     const uniqueParticipants = [
       ...new Set([currentUserId, ...formattedParticipantIds])
     ];
@@ -58,7 +60,6 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // ✅ 🔥 FIXED Duplicate Check
     if (!isGroup) {
       const existingRoom = await ChatRoom.findOne({
         isGroup: false,
@@ -75,26 +76,50 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // ❌ Group validation
     if (isGroup && !name) {
       return res.status(400).json({
         message: "Group name is required"
       });
     }
 
+    const participants = uniqueParticipants.map((id: string) => {
+      let first_Name = "";
+      let last_name = "";
+      let profile_picture = "";
+
+      if (id === currentUserId) {
+        first_Name = currentUser.first_name;
+        last_name = currentUser.last_name;
+        profile_picture = currentUser.profile_picture || "";
+      } else {
+        const user = userMap[id];
+        first_Name = user?.first_name || "";
+        last_name = user?.last_name || "";
+        profile_picture = user?.profile_picture || "";
+      }
+
+      return {
+        userId: id,
+        first_Name,
+        last_name,
+        profile_picture,
+        role: id === currentUserId ? "admin" : "member",
+        joinedAt: new Date()
+      };
+    });
+
     // ✅ Create room
     const room = await ChatRoom.create({
       name: isGroup ? name : "",
       isGroup: !!isGroup,
-      participants: uniqueParticipants.map((id: string) => ({
-        userId: id,
-        role: id === currentUserId ? "admin" : "member",
-        joinedAt: new Date()
-      })),
+      participants,
       createdBy: currentUserId
     });
 
-    return res.status(201).json(room);
+    return res.status(201).json({
+      status: true,
+      data: room
+    });
 
   } catch (err) {
     console.error("createRoom error:", err);
@@ -109,7 +134,6 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     const { roomId, message, messageType, mediaUrl } = req.body;
     const senderId = String(req.user!.id);
 
-    // ✅ Check if user belongs to room
     const room = await ChatRoom.findOne({
       _id: roomId,
       "participants.userId": senderId
@@ -121,7 +145,6 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // ✅ Prepare deliveredTo (all except sender)
     const deliveredTo = room.participants
       .filter((p: any) => p.userId !== senderId)
       .map((p: any) => ({
@@ -129,7 +152,6 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
         deliveredAt: new Date()
       }));
 
-    // ✅ Create message
     const msg = await Message.create({
       roomId,
       senderId,
@@ -139,7 +161,6 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       deliveredTo   // 🔥 NEW (delivery tracking)
     });
 
-    // ✅ Update last message in room
     await ChatRoom.findByIdAndUpdate(roomId, {
       lastMessage: {
         text: message,
@@ -148,7 +169,10 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    return res.status(201).json(msg);
+    return res.status(201).json({
+      status: true,
+      data: msg
+    });
 
   } catch (err) {
     console.error("sendMessage error:", err);
@@ -162,7 +186,10 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId } = req.query;
     const messages = await Message.find({ roomId }).sort({ createdAt: 1 });
-    return res.json(messages);
+    return res.json({
+      status: true,
+      data: messages
+    });
   } catch (err) {
     return res.status(500).json({ error: err });
   }
@@ -196,12 +223,65 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
   try {
     const userId = String(req.user!.id);
 
+
     const rooms = await ChatRoom.find({
-      "participants.userId": userId
+      "participants.userId": userId,
+      lastMessage: { $exists: true, $ne: null } 
     }).sort({ updatedAt: -1 });
 
-    return res.json(rooms);
+    const formattedRooms = rooms.map((room: any) => {
+      const currentUserParticipant = room.participants.find(
+        (p: any) => p.userId === userId
+      );
+
+      const otherParticipants = room.participants.filter(
+        (p: any) => p.userId !== userId
+      );
+
+      let receiverName = "";
+      let receiverProfilePath = null;
+
+      if (!room.isGroup && otherParticipants.length > 0) {
+        const user = otherParticipants[0];
+        receiverName = `${user.first_Name} ${user.last_name}`;
+        receiverProfilePath = user.profile_picture || null;
+      }
+
+      const groupMembers = room.participants.map((p: any) => ({
+        fullName: `${p.first_Name} ${p.last_name}`,
+        profile_picture: p.profile_picture || null, 
+        isOnline: false,
+        unreadCount: p.unreadCount || 0
+      }));
+
+      return {
+        _id: room._id,
+        isGroup: room.isGroup,
+        groupName: room.isGroup ? room.name : "",
+        groupImage: room.groupImage || null,
+
+        roomId: room.roomId, 
+
+        lastMessage: room.lastMessage?.text || "",
+        lastMessageDate: room.lastMessage?.createdAt || null,
+
+        receiverName,
+        receiverProfilePath,
+
+        isOnline: false, // 🔥 socket later
+        unreadCount: currentUserParticipant?.unreadCount || 0, 
+
+        groupMembers: room.isGroup ? groupMembers : undefined
+      };
+    });
+
+    return res.json({
+      status: true,
+      data: formattedRooms
+    });
+
   } catch (err) {
+    console.error("getMyRooms error:", err);
     return res.status(500).json({ error: err });
   }
 };
@@ -216,7 +296,10 @@ export const getRoomById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    return res.json(room);
+    return res.json({
+      status: true,
+      data: room
+    });
   } catch (err) {
     return res.status(500).json({ error: err });
   }
@@ -226,7 +309,6 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId, userId } = req.body;
 
-    // ✅ Validate user from MySQL
     const user = await User.findOne({
       where: { id: userId },
       attributes: ["id"]
@@ -252,7 +334,10 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
       { new: true }
     );
 
-    return res.json(room);
+    return res.json({
+      status: true,
+      data: room
+    });
   } catch (err) {
     console.error("addParticipant error:", err);
     return res.status(500).json({
@@ -283,7 +368,10 @@ export const removeParticipant = async (req: AuthRequest, res: Response) => {
       { new: true }
     );
 
-    return res.json(updatedRoom);
+    return res.json({
+      status: true,
+      data: updatedRoom
+    });
   } catch (err) {
     console.error("removeParticipant error:", err);
     return res.status(500).json({
@@ -296,7 +384,6 @@ export const leaveRoom = async (req: AuthRequest, res: Response) => {
   try {
     const userId = String(req.user!.id);
     const { roomId } = req.body;
-    console.log("userId",userId)
 
     const room = await ChatRoom.findById(roomId);
 
@@ -316,7 +403,10 @@ export const leaveRoom = async (req: AuthRequest, res: Response) => {
       { new: true }
     );
 
-    return res.json(updatedRoom);
+    return res.json({
+      status: true,
+      data: updatedRoom
+    });
   } catch (err) {
     console.error("leaveRoom error:", err);
     return res.status(500).json({
@@ -335,7 +425,10 @@ export const deleteMessage = async (req: AuthRequest, res: Response) => {
       { new: true }
     );
 
-    return res.json(msg);
+    return res.json({
+      status: true,
+      data: msg
+    });
   } catch (err) {
     return res.status(500).json({ error: err });
   }
@@ -346,13 +439,11 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
     const userId = String(req.user!.id);
     const { roomId } = req.query; // 👈 optional
 
-    // ✅ Base match
     const match: any = {
       senderId: { $ne: userId }, // ❗ don't count own messages
       "readBy.userId": { $ne: userId }
     };
 
-    // ✅ If specific room requested
     if (roomId) {
       match.roomId = roomId;
     }
@@ -367,7 +458,6 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
       }
     ]);
 
-    // ✅ If roomId passed → return single number
     if (roomId) {
       return res.json({
         roomId,
@@ -375,8 +465,10 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // ✅ Otherwise return all rooms
-    return res.json(result);
+    return res.json({
+      status: true,
+      data: result
+    });
 
   } catch (err) {
     console.error("getUnreadCount error:", err);
@@ -397,7 +489,10 @@ export const getRoomMessagesPaginated = async (req: AuthRequest, res: Response) 
       .skip((page - 1) * limit)
       .limit(limit);
 
-    return res.json(messages);
+    return res.json({
+      status: true,
+      data: messages
+    });
   } catch (err) {
     return res.status(500).json({ error: err });
   }
@@ -432,6 +527,7 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
     );
 
     return res.json({
+      status: true,
       message: "Messages marked as read",
       updatedCount: result.modifiedCount
     });

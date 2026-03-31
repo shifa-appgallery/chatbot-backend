@@ -9,6 +9,9 @@ export interface AuthRequest extends Request {
     id: number;
     email: string;
     name: string;
+    first_name: string;
+    last_name: string;
+    profile_picture: string
   };
 }
 
@@ -22,7 +25,6 @@ export const authorize = async (req: AuthRequest, res: Response, next: NextFunct
 
     const token = authHeader.split(" ")[1];
     if (!token) return res.status(401).json({ error: "Token missing" });
-console.log("token",token)
     // ✅ Decode JWT
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as { id?: number; email: string };
 
@@ -49,7 +51,10 @@ console.log("token",token)
     req.user = {
       id: user.id,
       email: user.email,
-      name: user.name,
+      name: `${user.first_name} ${user.last_name}`,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      profile_picture: user.profile_picture,
     };
 
     next();
