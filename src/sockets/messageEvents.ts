@@ -20,7 +20,6 @@ interface MarkDeliveredPayload {
 
 export default (socket: AuthenticatedSocket, io: Server) => {
 
-  // ✅ SEND MESSAGE
   socket.on("send_message", async ({
     roomId,
     message,
@@ -38,23 +37,28 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       mediaUrl: mediaUrl || null
     });
 
-    // ✅ update chat room last message
-    await ChatRooms.findByIdAndUpdate(roomId, {
-      lastMessage: {
-        text: message,
-        senderId,
-        createdAt: new Date()
+    await ChatRooms.findByIdAndUpdate(
+      roomId,
+      {
+        lastMessage: {
+          text: messageType === "text" ? message : messageType,
+          senderId,
+          createdAt: new Date()
+        },
+        $inc: {
+          "participants.$[elem].unreadCount": 1
+        }
+      },
+      {
+        arrayFilters: [{ "elem.userId": { $ne: senderId } }]
       }
-    });
+    );
 
-    // ✅ send to all users in room
     io.to(roomId.toString()).emit("receive_message", msg);
 
-    // ✅ SINGLE TICK (important 🔥)
     socket.emit("message_sent", msg);
   });
 
-  // ✅ MARK AS DELIVERED
   socket.on("mark_delivered", async ({ roomId }: MarkDeliveredPayload) => {
     const userId = String(socket.user?._id);
 
@@ -73,7 +77,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     socket.to(roomId.toString()).emit("messages_delivered", { userId });
   });
 
-  // ✅ MARK AS READ
   socket.on("mark_read", async ({ roomId }: MarkReadPayload) => {
     const userId = String(socket.user?._id);
 
