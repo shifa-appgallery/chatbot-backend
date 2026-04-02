@@ -1,10 +1,13 @@
-// src/config/firebase.ts
-import admin from "firebase-admin";
+// import admin from "firebase-admin";
+// import path from "path";
 
-admin.initializeApp({
-  credential: admin.credential.cert(
-    require("../../firebase-service-account.json")
-  )
-});
+// const serviceAccountPath = path.join(
+//   process.cwd(),
+//   "firebase-service-account.json"
+// );
 
-export default admin;
+// admin.initializeApp({
+//   credential: admin.credential.cert(require(serviceAccountPath)),
+// });
+
+// export default admin;
