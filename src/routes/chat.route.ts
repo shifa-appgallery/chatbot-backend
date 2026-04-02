@@ -73,6 +73,7 @@ router.get(
 
 router.put("/mark-as-read", authorize, chatController.markAsRead);
 
+router.post("/save-device-token", authorize, chatController.saveDeviceToken);
 
 
 export default router;
