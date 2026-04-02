@@ -51,21 +51,29 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       const usersInOtherRoom: string[] = [];
       const offlineUsers: string[] = [];
 
-      for (const user of presenceList) {
-        if (user.isOnline && user.activeRoomId !== roomId) {
-          usersInOtherRoom.push(user.userId);
+      const presenceMap = new Map(
+        presenceList.map(p => [p.userId, p])
+      );
+
+      for (const userId of receiverIds) {
+        const presence = presenceMap.get(userId);
+
+        // OFFLINE (no record OR isOnline false)
+        if (!presence || !presence.isOnline) {
+          offlineUsers.push(userId);
+        }
+        // ONLINE but in different room
+        else if (presence.activeRoomId !== roomId) {
+          usersInOtherRoom.push(userId);
 
           const userSockets = await io.fetchSockets();
           const socketsOfUser = userSockets.filter(
-            s => String((s as any).user?._id) === user.userId
+            s => String((s as any).user?._id) === userId
           );
 
           socketsOfUser.forEach(s => {
             s.emit("new_message_notification", { roomId, message, senderId });
           });
-
-        } else if (!user.isOnline) {
-          offlineUsers.push(user.userId);
         }
       }
 

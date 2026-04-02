@@ -227,7 +227,7 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
 
     const rooms = await ChatRoom.find({
       "participants.userId": userId,
-      lastMessage: { $exists: true, $ne: null } 
+      lastMessage: { $exists: true, $ne: null }
     }).sort({ updatedAt: -1 });
 
     const formattedRooms = rooms.map((room: any) => {
@@ -250,10 +250,14 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
 
       const groupMembers = room.participants.map((p: any) => ({
         fullName: `${p.first_Name} ${p.last_name}`,
-        profile_picture: p.profile_picture || null, 
+        profile_picture: p.profile_picture || null,
         isOnline: false,
         unreadCount: p.unreadCount || 0
       }));
+
+      const receiverUserId = !room.isGroup && otherParticipants.length > 0
+        ? otherParticipants[0].userId
+        : null;
 
       return {
         _id: room._id,
@@ -261,16 +265,17 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
         groupName: room.isGroup ? room.name : "",
         groupImage: room.groupImage || null,
 
-        roomId: room.roomId, 
+        roomId: room.roomId,
 
         lastMessage: room.lastMessage?.text || "",
         lastMessageDate: room.lastMessage?.createdAt || null,
 
         receiverName,
+        receiverUserId,
         receiverProfilePath,
 
         isOnline: false, // 🔥 socket later
-        unreadCount: currentUserParticipant?.unreadCount || 0, 
+        unreadCount: currentUserParticipant?.unreadCount || 0,
 
         groupMembers: room.isGroup ? groupMembers : undefined
       };
@@ -542,7 +547,7 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
 
 export const saveDeviceToken = async (req: AuthRequest, res: Response) => {
   const { fcmToken, deviceType } = req.body;
-   const userId = String(req.user!.id);
+  const userId = String(req.user!.id);
 
   await UserDevice.findOneAndUpdate(
     { userId, fcmToken },
