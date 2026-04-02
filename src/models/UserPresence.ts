@@ -20,7 +20,9 @@ const userPresenceSchema = new mongoose.Schema({
   socketId: {
     type: String,
     default: null
-  }
+  },
+
+  activeRoomId: { type: String, default: null }
 
 }, { timestamps: true });
 

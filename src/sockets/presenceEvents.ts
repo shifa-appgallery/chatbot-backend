@@ -11,7 +11,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       {
         isOnline: true,
         lastSeen: new Date(),
-        socketId: socket.id
+        $addToSet: { socketIds: socket.id }
       },
       { upsert: true, new: true }
     );
@@ -23,9 +23,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     await UserPresence.findOneAndUpdate(
       { userId },
       {
-        isOnline: false,
+        isOnline: { $cond: [{ $size: "$socketIds" }, true, false] },
         lastSeen: new Date(),
-        socketId: null
+        $pull: { socketIds: socket.id },
       }
     );
 

@@ -6,6 +6,7 @@ import UserPreference from "../models/UserPreference";
 import { AuthRequest } from "../middleware/authorize";
 import { Op } from "sequelize";
 import { User } from "../models/mysql/User";
+import UserDevice from "../models/UserDevice";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -509,7 +510,6 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // ✅ Update all unread messages in this room
     const result = await Message.updateMany(
       {
         roomId,
@@ -538,4 +538,17 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
       message: "Internal server error"
     });
   }
+};
+
+export const saveDeviceToken = async (req: AuthRequest, res: Response) => {
+  const { fcmToken, deviceType } = req.body;
+   const userId = String(req.user!.id);
+
+  await UserDevice.findOneAndUpdate(
+    { userId, fcmToken },
+    { deviceType, isActive: true },
+    { upsert: true }
+  );
+
+  res.json({ success: true });
 };

@@ -46,7 +46,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 const PORT = process.env.PORT || 3000;
 
 async function bootstrap() {
-  try {
+ try {
     await connectWithSSH();
     console.log(" DB ready");
 
@@ -59,7 +59,7 @@ async function bootstrap() {
       console.log(` Server running on port ${PORT}`);
     });
 
-  } catch (err) {
+  }  catch (err) {
     console.error(" Startup failed:", err);
     process.exit(1);
   }
