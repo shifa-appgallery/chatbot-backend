@@ -13,7 +13,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         lastSeen: new Date(),
         $addToSet: { socketIds: socket.id }
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
 
     socket.broadcast.emit("user_online", { userId });
@@ -21,21 +21,17 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
   socket.on("disconnect", async () => {
     try {
-      // Step 1: remove this socket
-      await UserPresence.findOneAndUpdate(
+      const updated = await UserPresence.findOneAndUpdate(
         { userId },
         {
           $pull: { socketIds: socket.id },
           lastSeen: new Date()
-        }
+        },
+        { returnDocument: "after" }
       );
 
-      // Step 2: check remaining sockets
-      const userPresence = await UserPresence.findOne({ userId });
+      const isOnline = (updated?.socketIds || []).length > 0;
 
-      const isOnline = (userPresence?.socketIds || []).length > 0;
-
-      // Step 3: update isOnline
       await UserPresence.updateOne(
         { userId },
         { isOnline }

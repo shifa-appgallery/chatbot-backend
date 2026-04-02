@@ -19,7 +19,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       await UserPresence.findOneAndUpdate(
         { userId },
         { activeRoomId: roomId },
-        { upsert: true }
+        { upsert: true, returnDocument: "after" }
       );
 
       await ChatRooms.updateOne(
@@ -28,6 +28,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           $set: {
             "participants.$.unreadCount": 0
           }
+        },
+        {
+          arrayFilters: [
+            { "elem.userId": { $ne: userId  } } // increase for others only
+          ]
         }
       );
 
