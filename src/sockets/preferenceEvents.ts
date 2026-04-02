@@ -37,7 +37,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           ...(isPinned && { pinnedAt: new Date() }),
           ...(isMuted && { muteUntil: muteUntil || null })
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       );
 
       // Emit updated preference to user
