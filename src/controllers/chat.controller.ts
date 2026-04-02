@@ -211,7 +211,7 @@ export const updatePreference = async (req: AuthRequest, res: Response) => {
         ...(isPinned && { pinnedAt: new Date() }),
         ...(isMuted && { muteUntil: muteUntil || null })
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
 
     return res.json(pref);
@@ -337,7 +337,7 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
           }
         }
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     return res.json({
@@ -371,7 +371,7 @@ export const removeParticipant = async (req: AuthRequest, res: Response) => {
           participants: { userId: String(userId) }
         }
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     return res.json({
@@ -406,7 +406,7 @@ export const leaveRoom = async (req: AuthRequest, res: Response) => {
           participants: { userId }
         }
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     return res.json({
@@ -428,7 +428,7 @@ export const deleteMessage = async (req: AuthRequest, res: Response) => {
     const msg = await Message.findByIdAndUpdate(
       messageId,
       { isDeleted: true },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     return res.json({
