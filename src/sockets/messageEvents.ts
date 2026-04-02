@@ -4,7 +4,7 @@ import Messages from "../models/Messages";
 import UserPresence from "../models/UserPresence";
 import UserDevice from "../models/UserDevice";
 import UserPreference from "../models/UserPreference";
-import { sendPushNotification } from "../utils/sendPush";
+// import { sendPushNotification } from "../utils/sendPush";
 import { AuthenticatedSocket } from "../types/AuthenticatedSocket";
 
 interface SendMessagePayload {
@@ -115,16 +115,16 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         isActive: true
       });
 
-      await Promise.all(
-        devices.map(device =>
-          sendPushNotification(
-            device.fcmToken,
-            "New Message",
-            message,
-            { roomId }
-          )
-        )
-      );
+      // await Promise.all(
+      //   devices.map(device =>
+      //     // sendPushNotification(
+      //       device.fcmToken,
+      //       "New Message",
+      //       message,
+      //       { roomId }
+      //     )
+      //   )
+      // );
 
     } catch (err) {
       console.error("send_message error:", err);
