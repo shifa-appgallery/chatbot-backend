@@ -17,10 +17,12 @@ const userPresenceSchema = new mongoose.Schema({
     default: null
   },
 
-  socketId: {
-    type: String,
-    default: null
-  },
+  socketIds: [
+    {
+      type: String
+    }
+  ],
+
 
   activeRoomId: { type: String, default: null }
 
