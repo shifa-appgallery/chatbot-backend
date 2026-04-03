@@ -20,7 +20,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           lastSeen: new Date(),
           $addToSet: { socketIds: socket.id }
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       );
 
       socket.broadcast.emit("user_online", { userId });
@@ -45,7 +45,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           $pull: { socketIds: socket.id },
           lastSeen: new Date()
         },
-        { new: true }
+        { returnDocument: "after" }
       );
 
       if (!updated) return;

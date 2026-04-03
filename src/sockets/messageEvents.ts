@@ -25,7 +25,6 @@ interface MarkDeliveredPayload {
 
 export default (socket: AuthenticatedSocket, io: Server) => {
 
-  // --- Send message ---
   socket.on("send_message", async ({ roomId, message, messageType, mediaUrl }: SendMessagePayload) => {
     try {
       const senderId = String(socket.user?._id);
@@ -102,6 +101,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         roomId
       });
 
+      console.log("📋 prefs found:", prefs.length);
+
       const now = new Date();
 
       const allowedUsers = prefs
@@ -111,7 +112,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         )
         .map(p => String(p.userId));
 
-      // SEND IN-APP NOTIFICATION (for online users in other room)
+      console.log("✅ allowedUsers:", allowedUsers);
+
       const allowedPresence = presenceList.filter(p =>
         allowedUsers.includes(String(p.userId))
       );
@@ -135,6 +137,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         isActive: true
       });
 
+      console.log("📱 devices found:", devices.length)
       await Promise.all(
         devices.map(device =>
           sendNotification(
@@ -150,14 +153,12 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     }
   });
 
-  // --- Mark messages as delivered ---
   socket.on("mark_delivered", async ({ roomId }: MarkDeliveredPayload) => {
     const userId = String(socket.user?._id);
 
-    // Step 1: Find messages not yet delivered to this user
     const undeliveredMessages = await Messages.find(
       { roomId, "deliveredTo.userId": { $ne: userId } },
-      { _id: 1 } // only fetch _id
+      { _id: 1 }
     );
 
     const messageIds = undeliveredMessages.map(m => String(m._id));
@@ -182,11 +183,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     }
   });
 
-  // --- Mark messages as read ---
   socket.on("mark_read", async ({ roomId }: MarkReadPayload) => {
     const userId = String(socket.user?._id);
 
-    // Step 1: Find unread messages first (just their IDs for performance)
     const unreadMessages = await Messages.find(
       { roomId, "readBy.userId": { $ne: userId } },
       { _id: 1 } // only fetch _id
@@ -195,7 +194,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     const messageIds = unreadMessages.map(m => String(m._id));
 
     if (messageIds.length > 0) {
-      // Step 2: Update them as read
       await Messages.updateMany(
         { _id: { $in: messageIds } },
         {
@@ -205,14 +203,12 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         }
       );
 
-      // Step 3: Emit to other users in the room
       socket.to(roomId.toString()).emit("messages_read", {
         userId,
         roomId,
         messageIds
       });
 
-      // Step 4: Reset unread count for this user in the room
       await ChatRooms.findOneAndUpdate(
         { _id: roomId, "participants.userId": userId },
         { $set: { "participants.$.unreadCount": 0 } }

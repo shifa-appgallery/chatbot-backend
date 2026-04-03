@@ -557,7 +557,7 @@ export const saveDeviceToken = async (req: AuthRequest, res: Response) => {
       deviceType,
       isActive: true
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
 
   res.json({ success: true });

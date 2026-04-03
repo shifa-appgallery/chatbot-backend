@@ -22,7 +22,6 @@ const messageSchema = new mongoose.Schema({
 
   mediaUrl: String,
 
-  // ✅ Delivered
   deliveredTo: [
     {
       userId: String,
@@ -30,7 +29,6 @@ const messageSchema = new mongoose.Schema({
     }
   ],
 
-  // ✅ Read
   readBy: [
     {
       userId: String,
