@@ -54,7 +54,6 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       ...new Set([currentUserId, ...formattedParticipantIds])
     ];
 
-    // ❌ 1-1 validation
     if (!isGroup && uniqueParticipants.length !== 2) {
       return res.status(400).json({
         message: "1-1 chat must have exactly 2 users"
@@ -73,7 +72,10 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       });
 
       if (existingRoom) {
-        return res.status(200).json(existingRoom);
+        return res.status(201).json({
+          status: true,
+          data: existingRoom
+        })
       }
     }
 
@@ -109,7 +111,6 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    // ✅ Create room
     const room = await ChatRoom.create({
       name: isGroup ? name : "",
       isGroup: !!isGroup,
