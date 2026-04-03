@@ -7,6 +7,7 @@ import UserPreference from "../models/UserPreference";
 // import { sendPushNotification } from "../utils/sendPush";
 import { AuthenticatedSocket } from "../types/AuthenticatedSocket";
 import { sendNotification } from "../utils/sendPush";
+import mongoose from "mongoose";
 
 interface SendMessagePayload {
   roomId: string;
@@ -96,9 +97,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // 🔥 NEW: COMBINED USERS
       const usersToNotify = [...usersInOtherRoom, ...offlineUsers];
 
+      console.log("👥 receiverIds:", receiverIds);
+      console.log("👥 offlineUsers:", offlineUsers);
+      console.log("👥 usersInOtherRoom:", usersInOtherRoom);
+      console.log("👥 usersToNotify:", usersToNotify);
+
       const prefs = await UserPreference.find({
-        userId: { $in: usersToNotify },
-        roomId
+        userId: { $in: usersToNotify.map(id => String(id)) },
+        roomId: new mongoose.Types.ObjectId(roomId)  // ← convert to ObjectId
       });
 
       console.log("📋 prefs found:", prefs.length);
