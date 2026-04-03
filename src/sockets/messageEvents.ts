@@ -105,7 +105,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       const prefs = await UserPreference.find({
         userId: { $in: usersToNotify.map(id => String(id)) },
-        roomId: new mongoose.Types.ObjectId(roomId)  // ← convert to ObjectId
+        $or: [
+          { roomId: roomId },                        
+          { roomId: new mongoose.Types.ObjectId(roomId) }
+        ]
       });
 
       console.log("📋 prefs found:", prefs.length);
