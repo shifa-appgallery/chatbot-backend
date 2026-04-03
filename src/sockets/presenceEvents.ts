@@ -16,7 +16,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       { upsert: true, returnDocument: "after" }
     );
 
-    socket.broadcast.emit("user_online", { userId });
+    io.emit("user_online", { userId });
   })();
 
   socket.on("disconnect", async () => {
@@ -37,7 +37,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         { isOnline }
       );
 
-      socket.broadcast.emit("user_offline", { userId });
+      io.emit("user_offline", { userId });
 
     } catch (err) {
       console.error("disconnect error:", err);
