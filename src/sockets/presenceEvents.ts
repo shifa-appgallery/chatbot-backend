@@ -39,34 +39,30 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   // --- ON DISCONNECT ---
   socket.on("disconnect", async () => {
     try {
+      // Pull the socketId first
       const updated = await UserPresence.findOneAndUpdate(
         { userId },
-        {
-          $pull: { socketIds: socket.id },
-          lastSeen: new Date()
-        },
+        { $pull: { socketIds: socket.id }, lastSeen: new Date() },
         { returnDocument: "after" }
       );
 
       if (!updated) return;
 
-      const remainingSockets = updated.socketIds || [];
-      const isOnline = remainingSockets.length > 0;
+      const isOnline = updated.socketIds.length > 0;
 
+      // Update isOnline properly
       await UserPresence.updateOne(
         { userId },
-        {
-          isOnline,
-          ...(isOnline === false && { activeRoomId: null }) // ✅ important
-        }
+        { isOnline, ...(isOnline ? {} : { activeRoomId: null }) }
       );
 
       if (!isOnline) {
         io.emit("user_offline", { userId });
       }
-
+      console.log("Disconnecting socket:", socket.id, "Remaining sockets:", updated.socketIds, "isOnline:", isOnline);
     } catch (err) {
       console.error("disconnect error:", err);
     }
   });
+
 };
