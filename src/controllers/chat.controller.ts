@@ -550,9 +550,13 @@ export const saveDeviceToken = async (req: AuthRequest, res: Response) => {
   const userId = String(req.user!.id);
 
   await UserDevice.findOneAndUpdate(
-    { userId, fcmToken },
-    { deviceType, isActive: true },
-    { upsert: true }
+    { userId },
+    {
+      fcmToken,
+      deviceType,
+      isActive: true
+    },
+    { upsert: true, new: true }
   );
 
   res.json({ success: true });

@@ -1,32 +1,29 @@
-// // src/utils/sendPush.ts
-// import admin from "../config/firebase";
+import axios from "axios";
+import { getAccessToken, PROJECT_ID } from "../config/firebase";
 
-// export const sendPushNotification = async (
-//   token: string,
-//   title: string,
-//   body: string,
-//   data: any = {}
-// ) => {
-//   try {
-//     await admin.messaging().send({
-//       token,
-//       notification: { title, body },
-//       data
-//     });
-//   } catch (err: any) {
-//     console.error("Push error:", err?.code);
+export const sendNotification = async (
+  deviceToken: string,
+  title: string,
+  body: string
+) => {
+  const accessToken = await getAccessToken();
 
-//     // ❗ REMOVE invalid tokens
-//     if (
-//       err.code === "messaging/registration-token-not-registered" ||
-//       err.code === "messaging/invalid-registration-token"
-//     ) {
-//       const UserDevice = require("../models/UserDevice").default;
-
-//       await UserDevice.updateOne(
-//         { fcmToken: token },
-//         { isActive: false }
-//       );
-//     }
-//   }
-// };
+  await axios.post(
+    `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`,
+    {
+      message: {
+        token: deviceToken,
+        notification: {
+          title,
+          body,
+        },
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+};

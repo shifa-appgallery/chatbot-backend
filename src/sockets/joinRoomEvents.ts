@@ -28,29 +28,39 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           $set: {
             "participants.$.unreadCount": 0
           }
-        },
-        {
-          arrayFilters: [
-            { "elem.userId": { $ne: userId  } } // increase for others only
-          ]
         }
       );
 
-      await Messages.updateMany(
+      const unreadMessages = await Messages.find(
         {
           roomId,
           senderId: { $ne: userId },
           "readBy.userId": { $ne: userId }
         },
-        {
-          $addToSet: {
-            readBy: {
-              userId,
-              readAt: new Date()
+        { _id: 1 }
+      );
+
+      const messageIds = unreadMessages.map(m => String(m._id));
+
+      if (messageIds.length > 0) {
+        await Messages.updateMany(
+          { _id: { $in: messageIds } },
+          {
+            $addToSet: {
+              readBy: {
+                userId,
+                readAt: new Date()
+              }
             }
           }
-        }
-      );
+        );
+
+        socket.to(roomId).emit("messages_read", {
+          userId,
+          roomId,
+          messageIds
+        });
+      }
 
       console.log(`User ${userId} joined room ${roomId}`);
 
@@ -65,7 +75,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       socket.leave(roomId);
 
-      await UserPresence.findOneAndUpdate(
+      await UserPresence.updateOne(
         { userId, activeRoomId: roomId },
         { activeRoomId: null }
       );

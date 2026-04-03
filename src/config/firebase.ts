@@ -1,13 +1,18 @@
-// import admin from "firebase-admin";
-// import path from "path";
+import { google } from "googleapis";
 
-// const serviceAccountPath = path.join(
-//   process.cwd(),
-//   "firebase-service-account.json"
-// );
+const KEY_FILE_PATH = "src/config/firebase.json";
+const PROJECT_ID = "wefroth-3b0c9";
 
-// admin.initializeApp({
-//   credential: admin.credential.cert(require(serviceAccountPath)),
-// });
+export const getAccessToken = async (): Promise<string> => {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: KEY_FILE_PATH,
+    scopes: ["https://www.googleapis.com/auth/firebase.messaging"],
+  });
 
-// export default admin;
+  const client = await auth.getClient();
+  const token = await client.getAccessToken();
+
+  return token.token as string;
+};
+
+export { PROJECT_ID };

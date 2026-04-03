@@ -6,6 +6,7 @@ import UserDevice from "../models/UserDevice";
 import UserPreference from "../models/UserPreference";
 // import { sendPushNotification } from "../utils/sendPush";
 import { AuthenticatedSocket } from "../types/AuthenticatedSocket";
+import { sendNotification } from "../utils/sendPush";
 
 interface SendMessagePayload {
   roomId: string;
@@ -55,25 +56,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         presenceList.map(p => [p.userId, p])
       );
 
+      // UPDATED LOOP (no fetchSockets)
       for (const userId of receiverIds) {
         const presence = presenceMap.get(userId);
 
-        // OFFLINE (no record OR isOnline false)
         if (!presence || !presence.isOnline) {
           offlineUsers.push(userId);
-        }
-        // ONLINE but in different room
-        else if (presence.activeRoomId !== roomId) {
+        } else if (presence.activeRoomId !== roomId) {
           usersInOtherRoom.push(userId);
-
-          const userSockets = await io.fetchSockets();
-          const socketsOfUser = userSockets.filter(
-            s => String((s as any).user?._id) === userId
-          );
-
-          socketsOfUser.forEach(s => {
-            s.emit("new_message_notification", { roomId, message, senderId });
-          });
         }
       }
 
@@ -104,35 +94,56 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       io.to(roomId.toString()).emit("receive_message", msg);
       socket.emit("message_sent", msg);
 
+      // 🔥 NEW: COMBINED USERS
+      const usersToNotify = [...usersInOtherRoom, ...offlineUsers];
+
       const prefs = await UserPreference.find({
-        userId: { $in: offlineUsers },
+        userId: { $in: usersToNotify },
         roomId
       });
 
       const now = new Date();
 
-      const allowedOfflineUsers = prefs
+      const allowedUsers = prefs
         .filter(p =>
           (!p.isMuted || (p.muteUntil && p.muteUntil < now)) &&
           p.notificationLevel !== "none"
         )
-        .map(p => p.userId);
+        .map(p => String(p.userId));
 
+      // SEND IN-APP NOTIFICATION (for online users in other room)
+      const allowedPresence = presenceList.filter(p =>
+        allowedUsers.includes(String(p.userId))
+      );
+
+      allowedPresence.forEach(presence => {
+        // only users in OTHER ROOM (not same room)
+        if (presence.activeRoomId !== roomId) {
+          presence.socketIds.forEach((socketId: string) => {
+            io.to(socketId).emit("new_message_notification", {
+              roomId,
+              message,
+              senderId
+            });
+          });
+        }
+      });
+
+      // PUSH NOTIFICATION (for ALL allowed users — offline + background)
       const devices = await UserDevice.find({
-        userId: { $in: allowedOfflineUsers },
+        userId: { $in: allowedUsers },
         isActive: true
       });
 
-      // await Promise.all(
-      //   devices.map(device =>
-      //     // sendPushNotification(
-      //       device.fcmToken,
-      //       "New Message",
-      //       message,
-      //       { roomId }
-      //     )
-      //   )
-      // );
+      await Promise.all(
+        devices.map(device =>
+          sendNotification(
+            device.fcmToken,
+            "New Message",
+            message
+          )
+        )
+      );
 
     } catch (err) {
       console.error("send_message error:", err);
