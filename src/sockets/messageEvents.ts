@@ -95,7 +95,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       socket.emit("message_sent", msg);
 
       // 🔥 NEW: COMBINED USERS
-      const usersToNotify = [...usersInOtherRoom, ...offlineUsers];
+      // const usersToNotify = [...usersInOtherRoom, ...offlineUsers];
+      const usersToNotify = [...receiverIds];
 
       console.log("👥 receiverIds:", receiverIds);
       console.log("👥 offlineUsers:", offlineUsers);
