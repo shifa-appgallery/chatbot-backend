@@ -53,7 +53,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       const offlineUsers: string[] = [];
 
       const presenceMap = new Map(
-        presenceList.map(p => [p.userId, p])
+        presenceList.map(p => [String(p.userId), p])
       );
 
       // UPDATED LOOP (no fetchSockets)
@@ -76,7 +76,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         roomId,
         {
           lastMessage: {
-            text: messageType === "text" ? message : messageType,
+            text: messageType === "text"
+              ? message
+              : messageType === "image"
+                ? "Image"
+                : messageType,
             senderId,
             createdAt: new Date()
           },
@@ -94,30 +98,33 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       const updatedRoom = await ChatRooms.findById(roomId).select("participants lastMessage");
 
       // ✅ SEND ROOM UPDATE (ONLY ADD THIS BLOCK)
-      receiverIds.forEach(userId => {
-        const presence = presenceMap.get(userId);
+      for (const userId of receiverIds) {
+        const presence = await UserPresence.findOne({ userId });
 
-        if (presence?.socketIds?.length) {
-          const userParticipant = updatedRoom?.participants.find(
-            (p: any) => String(p.userId) === String(userId)
-          );
+        if (!presence || !presence.socketIds || presence.socketIds.length === 0) {
+          console.log("❌ No active socket for:", userId);
+          continue;
+        }
 
-          presence.socketIds.forEach((socketId: string) => {
-            io.to(socketId).emit("room_updated", {
-              roomId,
-              unreadCount: userParticipant?.unreadCount || 0,
-              lastMessage: updatedRoom?.lastMessage,
-              participants: updatedRoom?.participants   // ✅ ADD THIS
-            });
+        const userParticipant = updatedRoom?.participants?.find(
+          (p: any) => String(p.userId) === String(userId)
+        );
+
+        for (const socketId of presence.socketIds) {
+          io.to(socketId).emit("room_updated", {
+            roomId,
+            unreadCount: userParticipant?.unreadCount || 0,
+            lastMessage: updatedRoom?.lastMessage?.text || "",
+            lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
           });
         }
-      });
+      }
 
       socket.emit("room_updated", {
         roomId,
         unreadCount: 0,
-        lastMessage: updatedRoom?.lastMessage,
-        participants: updatedRoom?.participants   // ✅ ADD THIS
+        lastMessage: updatedRoom?.lastMessage?.text || "",
+        lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
       });
 
       io.to(roomId.toString()).emit("receive_message", msg);
@@ -264,8 +271,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         presence.socketIds?.forEach((socketId: string) => {
           io.to(socketId).emit("room_updated", {
             roomId,
-            unreadCount: userParticipant?.unreadCount || 0,
-            participants: updatedRoom?.participants
+            unreadCount: userParticipant?.unreadCount || 0
           });
         });
       });
