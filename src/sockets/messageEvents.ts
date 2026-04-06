@@ -26,6 +26,28 @@ interface MarkDeliveredPayload {
 
 export default (socket: AuthenticatedSocket, io: Server) => {
 
+  // Send current unread counts for all rooms this user is in
+  (async () => {
+    const userId = String(socket.user?._id);
+
+    const rooms = await ChatRooms.find({
+      "participants.userId": userId
+    }).select("participants lastMessage");
+
+    rooms.forEach(room => {
+      const userParticipant = room.participants.find(
+        (p: any) => String(p.userId) === userId
+      );
+
+      socket.emit("room_updated", {
+        roomId: room._id,
+        unreadCount: userParticipant?.unreadCount || 0,
+        lastMessage: room.lastMessage?.text || "",
+        lastMessageDate: room.lastMessage?.createdAt || null
+      });
+    });
+  })();
+
   socket.on("send_message", async ({ roomId, message, messageType, mediaUrl }: SendMessagePayload) => {
     try {
       const senderId = String(socket.user?._id);
@@ -98,25 +120,33 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       const updatedRoom = await ChatRooms.findById(roomId).select("participants lastMessage");
 
       // NEW: send to all presenceList with socketIds
-      presenceList.forEach(presence => {
-        if (!presence.socketIds || presence.socketIds.length === 0) return;
+      for (const userId of receiverIds) {
 
-        const userParticipant = updatedRoom?.participants?.find(
-          (p: any) => String(p.userId) === String(presence.userId)
+        const presenceMap = new Map(
+          presenceList.map(p => [String(p.userId), p])
         );
 
-        presence.socketIds.forEach(socketId => {
-          io.to(socketId).emit("room_updated", {
-            roomId,
-            unreadCount: userParticipant?.unreadCount || 0,
-            lastMessage: updatedRoom?.lastMessage?.text || "",
-            lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
-          });
+        const presence = presenceMap.get(userId);
 
-          // Also send the actual message to online users regardless of room
-          io.to(socketId).emit("receive_message", msg);
-        });
-      });
+        const userParticipant = updatedRoom?.participants?.find(
+          (p: any) => String(p.userId) === String(userId)
+        );
+
+        const payload = {
+          roomId,
+          unreadCount: userParticipant?.unreadCount || 0,
+          lastMessage: updatedRoom?.lastMessage?.text || "",
+          lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
+        };
+
+        if (presence && presence.socketIds?.length > 0) {
+          presence.socketIds.forEach((socketId: string) => {
+            io.to(socketId).emit("room_updated", payload);
+            io.to(socketId).emit("receive_message", msg);
+          });
+        }
+
+      }
 
       socket.emit("room_updated", {
         roomId,
