@@ -91,6 +91,35 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         }
       );
 
+      const updatedRoom = await ChatRooms.findById(roomId).select("participants lastMessage");
+
+      // ✅ SEND ROOM UPDATE (ONLY ADD THIS BLOCK)
+      receiverIds.forEach(userId => {
+        const presence = presenceMap.get(userId);
+
+        if (presence?.socketIds?.length) {
+          const userParticipant = updatedRoom?.participants.find(
+            (p: any) => String(p.userId) === String(userId)
+          );
+
+          presence.socketIds.forEach((socketId: string) => {
+            io.to(socketId).emit("room_updated", {
+              roomId,
+              unreadCount: userParticipant?.unreadCount || 0,
+              lastMessage: updatedRoom?.lastMessage,
+              participants: updatedRoom?.participants   // ✅ ADD THIS
+            });
+          });
+        }
+      });
+
+      socket.emit("room_updated", {
+        roomId,
+        unreadCount: 0,
+        lastMessage: updatedRoom?.lastMessage,
+        participants: updatedRoom?.participants   // ✅ ADD THIS
+      });
+
       io.to(roomId.toString()).emit("receive_message", msg);
       socket.emit("message_sent", msg);
 
@@ -220,6 +249,13 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         { _id: roomId, "participants.userId": userId },
         { $set: { "participants.$.unreadCount": 0 } }
       );
+
+      const updatedRoom = await ChatRooms.findById(roomId).select("participants");
+
+      io.to(roomId.toString()).emit("room_updated", {
+        roomId,
+        participants: updatedRoom?.participants
+      });
     }
   });
 
