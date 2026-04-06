@@ -97,28 +97,26 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       const updatedRoom = await ChatRooms.findById(roomId).select("participants lastMessage");
 
-      // ✅ SEND ROOM UPDATE (ONLY ADD THIS BLOCK)
-      for (const userId of receiverIds) {
-        const presence = await UserPresence.findOne({ userId });
-
-        if (!presence || !presence.socketIds || presence.socketIds.length === 0) {
-          console.log("❌ No active socket for:", userId);
-          continue;
-        }
+      // NEW: send to all presenceList with socketIds
+      presenceList.forEach(presence => {
+        if (!presence.socketIds || presence.socketIds.length === 0) return;
 
         const userParticipant = updatedRoom?.participants?.find(
-          (p: any) => String(p.userId) === String(userId)
+          (p: any) => String(p.userId) === String(presence.userId)
         );
 
-        for (const socketId of presence.socketIds) {
+        presence.socketIds.forEach(socketId => {
           io.to(socketId).emit("room_updated", {
             roomId,
             unreadCount: userParticipant?.unreadCount || 0,
             lastMessage: updatedRoom?.lastMessage?.text || "",
             lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
           });
-        }
-      }
+
+          // Also send the actual message to online users regardless of room
+          io.to(socketId).emit("receive_message", msg);
+        });
+      });
 
       socket.emit("room_updated", {
         roomId,
@@ -133,11 +131,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // 🔥 NEW: COMBINED USERS
       // const usersToNotify = [...usersInOtherRoom, ...offlineUsers];
       const usersToNotify = [...receiverIds];
-
-      console.log("👥 receiverIds:", receiverIds);
-      console.log("👥 offlineUsers:", offlineUsers);
-      console.log("👥 usersInOtherRoom:", usersInOtherRoom);
-      console.log("👥 usersToNotify:", usersToNotify);
 
       const prefs = await UserPreference.find({
         userId: { $in: usersToNotify.map(id => String(id)) },
