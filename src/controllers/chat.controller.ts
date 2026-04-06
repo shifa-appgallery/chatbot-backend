@@ -248,7 +248,7 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
     const rooms = await ChatRoom.find({
       "participants.userId": userId,
       lastMessage: { $exists: true, $ne: null }
-    }).sort({ updatedAt: -1 });
+    }).sort({ "lastMessage.createdAt": -1 });;
 
     const formattedRooms = rooms.map((room: any) => {
       const currentUserParticipant = room.participants.find(
@@ -294,7 +294,7 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
         receiverUserId,
         receiverProfilePath,
 
-        isOnline: false, // 🔥 socket later
+        isOnline: false,
         unreadCount: currentUserParticipant?.unreadCount || 0,
 
         groupMembers: room.isGroup ? groupMembers : undefined
@@ -443,7 +443,7 @@ export const leaveRoom = async (req: AuthRequest, res: Response) => {
 
 export const deleteMessage = async (req: AuthRequest, res: Response) => {
   try {
-    const { messageId } = req.params;
+    const { messageId } = req.query;
 
     const msg = await Message.findByIdAndUpdate(
       messageId,
@@ -580,4 +580,108 @@ export const saveDeviceToken = async (req: AuthRequest, res: Response) => {
   );
 
   res.json({ success: true });
+};
+
+export const deleteMessageForMe = async (req: AuthRequest, res: Response) => {
+  try {
+    const { messageId } = req.query;
+    const userId = String(req.user!.id);
+
+    const msg = await Message.findByIdAndUpdate(
+      messageId,
+      {
+        $addToSet: {
+          deletedFor: {
+            userId,
+            deletedAt: new Date()
+          }
+        }
+      },
+      { returnDocument: "after" }
+    );
+    return res.json({
+      status: true,
+      data: msg
+    })
+  } catch (err) {
+    return res.status(500).json({ error: err });
+  }
+}
+
+export const clearChatforMe = async (req: AuthRequest, res: Response) => {
+  try {
+    const { roomId } = req.query;
+    const userId = String(req.user!.id);
+
+    await Message.updateMany(
+      { roomId }, {
+      $addToSet: {
+        deletedFor: {
+          userId,
+          deletedAt: new Date()
+        }
+      }
+    }
+    );
+
+    return res.json({
+      status: true,
+      message: "Chat cleared successfully"
+    });
+
+  } catch (err) {
+    return res.status(500).json({ error: err });
+  }
+}
+
+export const getLastMessage = async (roomId: string, userId: string) => {
+  return await Message.findOne({
+    roomId,
+    deletedFor: {
+      $not: { $elemMatch: { userId } }
+    }
+  }).sort({ createdAt: -1 });
+};
+
+export const resetUnreadCount = async (req: AuthRequest, res: Response) => {
+  try {
+    const { roomId } = req.body;
+    const userId = String(req.user!.id);
+
+    await ChatRoom.updateOne(
+      { _id: roomId, "participants.userId": userId },
+      {
+        $set: {
+          "participants.$.unreadCount": 0
+        }
+      }
+    );
+
+    return res.json({
+      status: true
+    });
+
+  } catch (err) {
+    return res.status(500).json({ error: err });
+  }
+};
+
+export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
+  try {
+    const { messageId } = req.body;
+
+    const msg = await Message.findByIdAndUpdate(
+      messageId,
+      { isDeleted: true },
+      { returnDocument: "after" }
+    );
+
+    return res.json({
+      status: true,
+      data: msg
+    });
+
+  } catch (err) {
+    return res.status(500).json({ error: err });
+  }
 };
