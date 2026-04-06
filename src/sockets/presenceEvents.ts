@@ -39,7 +39,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   // --- ON DISCONNECT ---
   socket.on("disconnect", async () => {
     try {
-      // Pull the socketId first
+      // 1. Remove current socket
       const updated = await UserPresence.findOneAndUpdate(
         { userId },
         { $pull: { socketIds: socket.id }, lastSeen: new Date() },
@@ -48,18 +48,34 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       if (!updated) return;
 
-      const isOnline = updated.socketIds.length > 0;
+      // 2. Check if user still has active sockets
+      const isOnline = updated.socketIds && updated.socketIds.length > 0;
 
-      // Update isOnline properly
+      // 3. Update isOnline flag
       await UserPresence.updateOne(
         { userId },
-        { isOnline, ...(isOnline ? {} : { activeRoomId: null }) }
+        {
+          isOnline,
+          ...(isOnline ? {} : { activeRoomId: null })
+        }
       );
 
-      if (!isOnline) {
-        io.emit("user_offline", { userId });
-      }
-      console.log("Disconnecting socket:", socket.id, "Remaining sockets:", updated.socketIds, "isOnline:", isOnline);
+      // NEW: Always send full online users list
+      const onlineUsers = await UserPresence.find({ isOnline: true }).select("userId");
+
+      io.emit("online_users_list", {
+        users: onlineUsers.map(u => String(u.userId))
+      });
+
+      console.log(
+        "Disconnect:",
+        socket.id,
+        "Remaining:",
+        updated.socketIds,
+        "isOnline:",
+        isOnline
+      );
+
     } catch (err) {
       console.error("disconnect error:", err);
     }
