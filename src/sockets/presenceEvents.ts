@@ -18,7 +18,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         {
           isOnline: true,
           lastSeen: new Date(),
-          $addToSet: { socketIds: socket.id }
+          $addToSet: { socketIds: socket.id },
+          $pull: { socketIds: null } // ✅ cleanup invalid entries
         },
         { upsert: true, returnDocument: "after" }
       );
@@ -27,7 +28,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       const onlineUsers = await UserPresence.find({ isOnline: true }).select("userId");
 
-      socket.emit("online_users_list", {
+      io.emit("online_users_list", {
         users: onlineUsers.map(u => String(u.userId))
       });
 
@@ -47,6 +48,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       );
 
       if (!updated) return;
+
+      console.log("User:", userId, "All sockets:", updated.socketIds);
 
       // 2. Check if user still has active sockets
       const isOnline = updated.socketIds && updated.socketIds.length > 0;
