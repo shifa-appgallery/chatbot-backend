@@ -13,15 +13,23 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   // --- ON CONNECT ---
   (async () => {
     try {
-      const presence = await UserPresence.findOneAndUpdate(
+      // Step 1: Add current socket ID safely
+      await UserPresence.updateOne(
         { userId },
-        {
-          isOnline: true,
-          lastSeen: new Date(),
-          $addToSet: { socketIds: socket.id },
-          $pull: { socketIds: null } // ✅ cleanup invalid entries
-        },
-        { upsert: true, returnDocument: "after" }
+        { $addToSet: { socketIds: socket.id } },
+        { upsert: true }
+      );
+
+      // Step 2: Remove any invalid/null socket IDs
+      await UserPresence.updateOne(
+        { userId },
+        { $pull: { socketIds: null } }
+      );
+
+      // Step 3: Mark user as online and update lastSeen
+      await UserPresence.updateOne(
+        { userId },
+        { isOnline: true, lastSeen: new Date() }
       );
 
       socket.broadcast.emit("user_online", { userId });
