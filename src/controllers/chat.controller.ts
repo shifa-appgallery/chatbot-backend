@@ -29,7 +29,6 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
 
     const formattedParticipantIds = participantIds.map((id: any) => String(id));
 
-    // ✅ Fetch users from MySQL
     const users: any = await User.findAll({
       where: {
         id: {
@@ -117,6 +116,26 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       participants,
       createdBy: currentUserId
     });
+
+    // Create UserPreference for all participants
+    await Promise.all(
+      uniqueParticipants.map((userId: string) =>
+        UserPreference.updateOne(
+          { userId: String(userId), roomId: room._id },
+          {
+            $setOnInsert: {
+              userId: String(userId),
+              roomId: room._id,
+              notificationLevel: "all",
+              isMuted: false,
+              isPinned: false,
+              isArchived: false
+            }
+          },
+          { upsert: true }
+        )
+      )
+    );
 
     return res.status(201).json({
       status: true,
