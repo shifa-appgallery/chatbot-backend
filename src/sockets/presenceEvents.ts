@@ -11,30 +11,29 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   }
 
   // --- ON CONNECT ---
+  // --- ON CONNECT ---
   (async () => {
     try {
-      // Step 1: Add current socket ID safely
       await UserPresence.updateOne(
         { userId },
-        { $addToSet: { socketIds: socket.id } },
+        {
+          socketIds: [socket.id],
+          isOnline: true,
+          lastSeen: new Date()
+        },
         { upsert: true }
       );
 
-      // Step 2: Remove any invalid/null socket IDs
-      await UserPresence.updateOne(
-        { userId },
-        { $pull: { socketIds: null } }
-      );
+      console.log("User connected:", userId, socket.id);
 
-      // Step 3: Mark user as online and update lastSeen
-      await UserPresence.updateOne(
-        { userId },
-        { isOnline: true, lastSeen: new Date() }
-      );
-
+      // ✅ Notify others that user came online
       socket.broadcast.emit("user_online", { userId });
 
-      const onlineUsers = await UserPresence.find({ isOnline: true }).select("userId");
+      // ✅ SEND FULL LIST (but optimized)
+      const onlineUsers = await UserPresence.find(
+        { isOnline: true },
+        { userId: 1, _id: 0 } // 👈 only fetch required field
+      );
 
       io.emit("online_users_list", {
         users: onlineUsers.map(u => String(u.userId))
@@ -48,44 +47,31 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   // --- ON DISCONNECT ---
   socket.on("disconnect", async () => {
     try {
-      // 1. Remove current socket
-      const updated = await UserPresence.findOneAndUpdate(
-        { userId },
-        { $pull: { socketIds: socket.id }, lastSeen: new Date() },
-        { returnDocument: "after" }
-      );
+      console.log("User disconnected:", userId, "Socket:", socket.id);
 
-      if (!updated) return;
-
-      console.log("User:", userId, "All sockets:", updated.socketIds);
-
-      // 2. Check if user still has active sockets
-      const isOnline = updated.socketIds && updated.socketIds.length > 0;
-
-      // 3. Update isOnline flag
+      // ✅ Directly mark offline (no need to check sockets)
       await UserPresence.updateOne(
         { userId },
         {
-          isOnline,
-          ...(isOnline ? {} : { activeRoomId: null })
+          socketIds: [],
+          isOnline: false,
+          lastSeen: new Date(),
+          activeRoomId: null
         }
       );
 
-      // NEW: Always send full online users list
-      const onlineUsers = await UserPresence.find({ isOnline: true }).select("userId");
+      socket.broadcast.emit("user_offline", { userId });
+
+      const onlineUsers = await UserPresence.find(
+        { isOnline: true },
+        { userId: 1, _id: 0 }
+      );
 
       io.emit("online_users_list", {
         users: onlineUsers.map(u => String(u.userId))
       });
 
-      console.log(
-        "Disconnect:",
-        socket.id,
-        "Remaining:",
-        updated.socketIds,
-        "isOnline:",
-        isOnline
-      );
+      console.log("User offline:", userId);
 
     } catch (err) {
       console.error("disconnect error:", err);
