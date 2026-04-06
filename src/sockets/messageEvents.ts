@@ -252,9 +252,22 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       const updatedRoom = await ChatRooms.findById(roomId).select("participants");
 
-      io.to(roomId.toString()).emit("room_updated", {
-        roomId,
-        participants: updatedRoom?.participants
+      const presenceList = await UserPresence.find({
+        userId: { $in: updatedRoom?.participants.map((p: any) => String(p.userId)) }
+      });
+
+      presenceList.forEach(presence => {
+        const userParticipant = updatedRoom?.participants.find(
+          (p: any) => String(p.userId) === String(presence.userId)
+        );
+
+        presence.socketIds?.forEach((socketId: string) => {
+          io.to(socketId).emit("room_updated", {
+            roomId,
+            unreadCount: userParticipant?.unreadCount || 0,
+            participants: updatedRoom?.participants
+          });
+        });
       });
     }
   });
