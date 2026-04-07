@@ -205,15 +205,37 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
 export const getRoomMessages = async (req: AuthRequest, res: Response) => {
   try {
-    const { roomId, offset = '0', limit = '50' } = req.query;
+    const { roomId, start = '0', end = '3' } = req.query;
+    const userId = String(req.user!.id);
 
-    const skip = parseInt(offset as string, 10);
-    const lim = parseInt(limit as string, 10);
+    const startNum = parseInt(start as string, 10);
+    const endNum = parseInt(end as string, 10);
 
-    const messages = await Message.find({ roomId })
+    // 👉 Calculate date range
+    const now = new Date();
+
+    const endDate = new Date();
+    endDate.setDate(now.getDate() - startNum);
+    endDate.setHours(23, 59, 59, 999);
+
+    const startDate = new Date();
+    startDate.setDate(now.getDate() - (endNum - 1));
+    startDate.setHours(0, 0, 0, 0);
+
+    const messages = await Message.find({
+      roomId,
+      isDeleted: { $ne: true },
+      deletedFor: {
+        $not: {
+          $elemMatch: { userId }
+        }
+      },
+       createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    })
       .sort({ createdAt: 1 })
-      .skip(skip)
-      .limit(lim);
     return res.json({
       status: true,
       count: messages.length,
@@ -252,62 +274,74 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
   try {
     const userId = String(req.user!.id);
 
-
     const rooms = await ChatRoom.find({
-      "participants.userId": userId,
-      lastMessage: { $exists: true, $ne: null }
-    }).sort({ "lastMessage.createdAt": -1 });;
+      "participants.userId": userId
+    }).sort({ "lastMessage.createdAt": -1 });
 
-    const formattedRooms = rooms.map((room: any) => {
-      const currentUserParticipant = room.participants.find(
-        (p: any) => p.userId === userId
-      );
+    const formattedRooms = await Promise.all(
+      rooms.map(async (room: any) => {
 
-      const otherParticipants = room.participants.filter(
-        (p: any) => p.userId !== userId
-      );
+        // 🔥 IMPORTANT: get last visible message
+        const lastMsg = await Message.findOne({
+          roomId: room._id,
+          isDeleted: { $ne: true },
+          deletedFor: {
+            $not: { $elemMatch: { userId } }
+          }
+        }).sort({ createdAt: -1 });
 
-      let receiverName = "";
-      let receiverProfilePath = null;
+        const currentUserParticipant = room.participants.find(
+          (p: any) => p.userId === userId
+        );
 
-      if (!room.isGroup && otherParticipants.length > 0) {
-        const user = otherParticipants[0];
-        receiverName = `${user.first_Name} ${user.last_name}`;
-        receiverProfilePath = user.profile_picture || null;
-      }
+        const otherParticipants = room.participants.filter(
+          (p: any) => p.userId !== userId
+        );
 
-      const groupMembers = room.participants.map((p: any) => ({
-        fullName: `${p.first_Name} ${p.last_name}`,
-        profile_picture: p.profile_picture || null,
-        isOnline: false,
-        unreadCount: p.unreadCount || 0
-      }));
+        let receiverName = "";
+        let receiverProfilePath = null;
 
-      const receiverUserId = !room.isGroup && otherParticipants.length > 0
-        ? otherParticipants[0].userId
-        : null;
+        if (!room.isGroup && otherParticipants.length > 0) {
+          const user = otherParticipants[0];
+          receiverName = `${user.first_Name} ${user.last_name}`;
+          receiverProfilePath = user.profile_picture || null;
+        }
 
-      return {
-        _id: room._id,
-        isGroup: room.isGroup,
-        groupName: room.isGroup ? room.name : "",
-        groupImage: room.groupImage || null,
+        const groupMembers = room.participants.map((p: any) => ({
+          fullName: `${p.first_Name} ${p.last_name}`,
+          profile_picture: p.profile_picture || null,
+          isOnline: false,
+          unreadCount: p.unreadCount || 0
+        }));
 
-        roomId: room.roomId,
+        const receiverUserId =
+          !room.isGroup && otherParticipants.length > 0
+            ? otherParticipants[0].userId
+            : null;
 
-        lastMessage: room.lastMessage?.text || "",
-        lastMessageDate: room.lastMessage?.createdAt || null,
+        return {
+          _id: room._id,
+          isGroup: room.isGroup,
+          groupName: room.isGroup ? room.name : "",
+          groupImage: room.groupImage || null,
 
-        receiverName,
-        receiverUserId,
-        receiverProfilePath,
+          roomId: room.roomId,
 
-        isOnline: false,
-        unreadCount: currentUserParticipant?.unreadCount || 0,
+          // ✅ FIXED HERE
+          lastMessage: lastMsg?.message || "",
+          lastMessageDate: lastMsg?.createdAt || null,
 
-        groupMembers: room.isGroup ? groupMembers : undefined
-      };
-    });
+          receiverName,
+          receiverUserId,
+          receiverProfilePath,
+
+          isOnline: false,
+          unreadCount: currentUserParticipant?.unreadCount || 0,
+
+          groupMembers: room.isGroup ? groupMembers : undefined
+        };
+      })
+    );
 
     return res.json({
       status: true,
@@ -595,7 +629,7 @@ export const deleteMessageForMe = async (req: AuthRequest, res: Response) => {
     const { messageId } = req.query;
     const userId = String(req.user!.id);
 
-    const msg = await Message.findByIdAndUpdate(
+    const msg: any = await Message.findByIdAndUpdate(
       messageId,
       {
         $addToSet: {
@@ -607,14 +641,47 @@ export const deleteMessageForMe = async (req: AuthRequest, res: Response) => {
       },
       { returnDocument: "after" }
     );
+
+    if (!msg) {
+      return res.status(404).json({ status: false });
+    }
+
+    // ✅ check if it was last message
+    const room = await ChatRoom.findById(msg.roomId);
+
+    if (
+      room?.lastMessage?.createdAt &&
+      msg.createdAt &&
+      room.lastMessage.createdAt.toString() === msg.createdAt.toString()
+    ) {
+      const lastMsg = await Message.findOne({
+        roomId: msg.roomId,
+        isDeleted: { $ne: true },
+        deletedFor: {
+          $not: { $elemMatch: { userId } }
+        }
+      }).sort({ createdAt: -1 });
+
+      await ChatRoom.findByIdAndUpdate(msg.roomId, {
+        lastMessage: lastMsg
+          ? {
+            text: lastMsg.message,
+            senderId: lastMsg.senderId,
+            createdAt: lastMsg.createdAt
+          }
+          : null
+      });
+    }
+
     return res.json({
       status: true,
       data: msg
-    })
+    });
+
   } catch (err) {
     return res.status(500).json({ error: err });
   }
-}
+};
 
 export const clearChatforMe = async (req: AuthRequest, res: Response) => {
   try {
@@ -630,6 +697,30 @@ export const clearChatforMe = async (req: AuthRequest, res: Response) => {
         }
       }
     }
+    );
+
+    // 2. find latest visible message
+    const lastMsg = await Message.findOne({
+      roomId,
+      isDeleted: { $ne: true },
+      deletedFor: {
+        $not: {
+          $elemMatch: { userId }
+        }
+      }
+    }).sort({ createdAt: -1 });
+
+    await ChatRoom.findOneAndUpdate(
+      { _id: roomId },
+      {
+        lastMessage: lastMsg
+          ? {
+            text: lastMsg.message,
+            senderId: lastMsg.senderId,
+            createdAt: lastMsg.createdAt
+          }
+          : null
+      }
     );
 
     return res.json({
@@ -678,11 +769,42 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
   try {
     const { messageId } = req.body;
 
+    // 1. mark message deleted
     const msg = await Message.findByIdAndUpdate(
       messageId,
       { isDeleted: true },
       { returnDocument: "after" }
     );
+
+    if (!msg) {
+      return res.status(404).json({ status: false, message: "Message not found" });
+    }
+
+    // 2. check if it's last message of room
+    const room = await ChatRoom.findById(msg.roomId);
+
+    if (
+      room?.lastMessage?.createdAt &&
+      msg.createdAt &&
+      room.lastMessage.createdAt.toString() === msg.createdAt.toString()
+    ) {
+      // 3. find new last visible message
+      const lastMsg = await Message.findOne({
+        roomId: msg.roomId,
+        isDeleted: { $ne: true }
+      }).sort({ createdAt: -1 });
+
+      // 4. update chat room lastMessage
+      await ChatRoom.findByIdAndUpdate(msg.roomId, {
+        lastMessage: lastMsg
+          ? {
+            text: lastMsg.message,
+            senderId: lastMsg.senderId,
+            createdAt: lastMsg.createdAt
+          }
+          : null
+      });
+    }
 
     return res.json({
       status: true,

@@ -75,5 +75,10 @@ router.put("/mark-as-read", authorize, chatController.markAsRead);
 
 router.post("/save-device-token", authorize, chatController.saveDeviceToken);
 
+router.put("/delete-message-for-me", authorize, chatController.deleteMessageForMe);
+
+router.put("/clear-chat-for-me", authorize, chatController.clearChatforMe);
+
+router.put("/delete-chat-for-everyone", authorize, chatController.deleteForEveryone);
 
 export default router;

@@ -36,6 +36,12 @@ const messageSchema = new mongoose.Schema({
     }
   ],
 
+  deletedFor: [
+    {
+      userId: String,
+      deletedAt: Date
+    }
+  ],
   isDeleted: {
     type: Boolean,
     default: false
