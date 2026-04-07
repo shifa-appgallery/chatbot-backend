@@ -80,6 +80,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         { activeRoomId: null }
       );
 
+      console.log(`🚪 User ${userId} left room ${roomId}`);
+
     } catch (err) {
       console.error("leave_room error:", err);
     }
