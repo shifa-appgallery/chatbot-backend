@@ -280,7 +280,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         { $set: { "participants.$.unreadCount": 0 } }
       );
 
-      const updatedRoom = await ChatRooms.findById(roomId).select("participants");
+      const updatedRoom = await ChatRooms.findById(roomId).select("participants lastMessage");
 
       const presenceList = await UserPresence.find({
         userId: { $in: updatedRoom?.participants.map((p: any) => String(p.userId)) }
