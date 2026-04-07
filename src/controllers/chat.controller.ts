@@ -205,10 +205,18 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
 export const getRoomMessages = async (req: AuthRequest, res: Response) => {
   try {
-    const { roomId } = req.query;
-    const messages = await Message.find({ roomId }).sort({ createdAt: 1 });
+    const { roomId, offset = '0', limit = '50' } = req.query;
+
+    const skip = parseInt(offset as string, 10);
+    const lim = parseInt(limit as string, 10);
+
+    const messages = await Message.find({ roomId })
+      .sort({ createdAt: 1 })
+      .skip(skip)
+      .limit(lim);
     return res.json({
       status: true,
+      count: messages.length,
       data: messages
     });
   } catch (err) {
