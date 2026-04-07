@@ -294,7 +294,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         presence.socketIds?.forEach((socketId: string) => {
           io.to(socketId).emit("room_updated", {
             roomId,
-            unreadCount: userParticipant?.unreadCount || 0
+            unreadCount: userParticipant?.unreadCount || 0,
+            lastMessage: updatedRoom?.lastMessage?.text || "",
+            lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
           });
         });
       });
