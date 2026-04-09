@@ -25,6 +25,8 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
+app.set("io", io); 
+
 io.use((socket: AuthenticatedSocket, next) => {
   const userId = socket.handshake.auth.userId;
 

@@ -835,10 +835,10 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
 
       updatedLastMessage = lastMsg
         ? {
-            text: lastMsg.message,
-            senderId: lastMsg.senderId,
-            createdAt: lastMsg.createdAt
-          }
+          text: lastMsg.message,
+          senderId: lastMsg.senderId,
+          createdAt: lastMsg.createdAt
+        }
         : null;
 
       await ChatRoom.findByIdAndUpdate(msg.roomId, {
@@ -847,6 +847,15 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
     }
 
     const io = req.app.get("io");
+
+    if (!io) {
+      console.warn("Socket.io not available");
+    } else {
+      io.to(msg.roomId.toString()).emit("message_deleted", {
+        messageId: msg._id,
+        roomId: msg.roomId
+      });
+    }
 
     io.to(msg.roomId.toString()).emit("message_deleted", {
       messageId: msg._id,
@@ -865,7 +874,12 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
       message: "Message deleted for everyone"
     });
 
-  } catch (err) {
-    return res.status(500).json({ error: err });
+  } catch (err: any) {
+    console.error("Delete for everyone error:", err);
+
+    return res.status(500).json({
+      status: false,
+      message: err.message || "Internal server error"
+    });
   }
-};
+}
