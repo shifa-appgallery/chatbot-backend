@@ -211,7 +211,6 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
     const startNum = parseInt(start as string, 10);
     const endNum = parseInt(end as string, 10);
 
-    // 👉 Calculate date range
     const now = new Date();
 
     const endDate = new Date();
@@ -224,7 +223,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     const messages = await Message.find({
       roomId,
-      isDeleted: { $ne: true },
+      // isDeleted: { $ne: true },
       deletedFor: {
         $not: {
           $elemMatch: { userId }
