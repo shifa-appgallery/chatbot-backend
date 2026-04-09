@@ -866,11 +866,18 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
     }
     const roomId = roomIds[0];
 
+    // Update messages: mark deleted and replace content
     await Message.updateMany(
       { _id: { $in: messageIds } },
-      { $set: { isDeleted: true } }
+      { 
+        $set: { 
+          isDeleted: true,
+          message: "This message was deleted" 
+        } 
+      }
     );
 
+    // Update last message in the chat room
     const lastMsg = await Message.findOne({
       roomId,
       isDeleted: { $ne: true }
