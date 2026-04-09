@@ -840,9 +840,7 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const messages: any[] = await Message.find({
-      _id: { $in: messageIds }
-    });
+    const messages: any[] = await Message.find({ _id: { $in: messageIds } });
 
     if (!messages.length) {
       return res.status(404).json({
@@ -851,10 +849,7 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const invalidMsg = messages.find(
-      (m) => String(m.senderId) !== userId
-    );
-
+    const invalidMsg = messages.find(m => String(m.senderId) !== userId);
     if (invalidMsg) {
       return res.status(403).json({
         status: false,
@@ -862,24 +857,26 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const roomIds = [...new Set(messages.map(m => m.roomId.toString()))];
+    if (roomIds.length !== 1) {
+      return res.status(400).json({
+        status: false,
+        message: "All messages must belong to the same room"
+      });
+    }
+    const roomId = roomIds[0];
 
     await Message.updateMany(
       { _id: { $in: messageIds } },
       { $set: { isDeleted: true } }
     );
 
-    const roomId = messages[0].roomId;
-
-    const room: any = await ChatRoom.findById(roomId);
-
-    let updatedLastMessage = null;
-
     const lastMsg = await Message.findOne({
       roomId,
       isDeleted: { $ne: true }
     }).sort({ createdAt: -1 });
 
-    updatedLastMessage = lastMsg
+    const updatedLastMessage = lastMsg
       ? {
           text: lastMsg.message,
           senderId: lastMsg.senderId,
@@ -887,27 +884,28 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
         }
       : null;
 
-    await ChatRoom.findByIdAndUpdate(roomId, {
-      lastMessage: updatedLastMessage
-    });
+    await ChatRoom.findByIdAndUpdate(roomId, { lastMessage: updatedLastMessage });
 
     const io = req.app.get("io");
-
     if (io) {
-      io.to(roomId.toString()).emit("messages_deleted", {
-        messageIds,
-        roomId
-      });
+      for (const msg of messages) {
+        io.to(msg.roomId.toString()).emit("message_deleted", {
+          messageId: msg._id,
+          roomId: msg.roomId
+        });
+      }
 
-      io.to(roomId.toString()).emit("last_message_updated", {
-        roomId,
-        lastMessage: updatedLastMessage
-      });
+      if (updatedLastMessage) {
+        io.to(roomId.toString()).emit("last_message_updated", {
+          roomId,
+          lastMessage: updatedLastMessage
+        });
+      }
     }
 
     return res.json({
       status: true,
-      message: "Message deleted for everyone"
+      message: "Messages deleted for everyone"
     });
 
   } catch (err: any) {
