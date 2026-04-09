@@ -241,7 +241,10 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       data: messages
     });
   } catch (err) {
-    return res.status(500).json({ error: err });
+    console.error("getRoomMessages error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
 };
 
@@ -265,7 +268,10 @@ export const updatePreference = async (req: AuthRequest, res: Response) => {
 
     return res.json(pref);
   } catch (err) {
-    return res.status(500).json({ error: err });
+    console.error("updatePreference error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
 };
 
@@ -368,7 +374,10 @@ export const getRoomById = async (req: AuthRequest, res: Response) => {
       data: room
     });
   } catch (err) {
-    return res.status(500).json({ error: err });
+    console.error("getRoomById error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
 };
 
@@ -497,7 +506,10 @@ export const deleteMessage = async (req: AuthRequest, res: Response) => {
       data: msg
     });
   } catch (err) {
-    return res.status(500).json({ error: err });
+    console.error("deleteMessage error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
 };
 
@@ -561,7 +573,10 @@ export const getRoomMessagesPaginated = async (req: AuthRequest, res: Response) 
       data: messages
     });
   } catch (err) {
-    return res.status(500).json({ error: err });
+    console.error("getRoomMessagesPaginated error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
 };
 
@@ -607,20 +622,40 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
 };
 
 export const saveDeviceToken = async (req: AuthRequest, res: Response) => {
-  const { fcmToken, deviceType } = req.body;
-  const userId = String(req.user!.id);
+  try {
+    const { fcmToken, deviceType } = req.body;
+    const userId = String(req.user!.id);
 
-  await UserDevice.findOneAndUpdate(
-    { userId },
-    {
-      fcmToken,
-      deviceType,
-      isActive: true
-    },
-    { upsert: true, returnDocument: "after" }
-  );
+    if (!fcmToken || !deviceType) {
+      return res.status(400).json({
+        success: false,
+        message: "fcmToken and deviceType are required"
+      });
+    }
 
-  res.json({ success: true });
+    const device = await UserDevice.findOneAndUpdate(
+      { userId },
+      {
+        fcmToken,
+        deviceType,
+        isActive: true
+      },
+      { upsert: true, returnDocument: "after" }
+    );
+
+    console.log("Device token saved:", device?._id);
+
+    return res.json({
+      success: true,
+      message: "Device token saved successfully"
+    });
+
+  } catch (err) {
+    console.error("saveDeviceToken error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
+  }
 };
 
 export const deleteMessageForMe = async (req: AuthRequest, res: Response) => {
@@ -698,7 +733,10 @@ export const deleteMessageForMe = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (err) {
-    return res.status(500).json({ error: err });
+    console.error("deleteMessageForMe error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
 };
 
@@ -748,7 +786,10 @@ export const clearChatforMe = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (err) {
-    return res.status(500).json({ error: err });
+    console.error("clearChatforMe error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
 }
 
@@ -780,7 +821,10 @@ export const resetUnreadCount = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (err) {
-    return res.status(500).json({ error: err });
+    console.error("resetUnreadCount error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
   }
 };
 
