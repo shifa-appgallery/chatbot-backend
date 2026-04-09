@@ -830,84 +830,77 @@ export const resetUnreadCount = async (req: AuthRequest, res: Response) => {
 
 export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
   try {
-    const { messageId } = req.body;
+    const { messageIds } = req.body;
     const userId = String(req.user!.id);
 
-    const msg: any = await Message.findById(messageId);
-
-    if (!msg) {
-      return res.status(404).json({
+    if (!Array.isArray(messageIds) || messageIds.length === 0) {
+      return res.status(400).json({
         status: false,
-        message: "Message not found"
+        message: "messageIds array is required"
       });
     }
 
-    if (String(msg.senderId) !== userId) {
+    const messages: any[] = await Message.find({
+      _id: { $in: messageIds }
+    });
+
+    if (!messages.length) {
+      return res.status(404).json({
+        status: false,
+        message: "Messages not found"
+      });
+    }
+
+    const invalidMsg = messages.find(
+      (m) => String(m.senderId) !== userId
+    );
+
+    if (invalidMsg) {
       return res.status(403).json({
         status: false,
         message: "You can delete only your own messages"
       });
     }
 
-    const diffInMinutes =
-      (Date.now() - new Date(msg.createdAt).getTime()) / (1000 * 60);
 
-    if (diffInMinutes > 60) {
-      return res.status(400).json({
-        status: false,
-        message: "Delete time expired"
-      });
-    }
+    await Message.updateMany(
+      { _id: { $in: messageIds } },
+      { $set: { isDeleted: true } }
+    );
 
-    msg.isDeleted = true;
-    await msg.save();
+    const roomId = messages[0].roomId;
 
-    const room: any = await ChatRoom.findById(msg.roomId);
+    const room: any = await ChatRoom.findById(roomId);
 
     let updatedLastMessage = null;
 
-    if (
-      room?.lastMessage?.createdAt &&
-      msg.createdAt &&
-      room.lastMessage.createdAt.toString() === msg.createdAt.toString()
-    ) {
-      const lastMsg = await Message.findOne({
-        roomId: msg.roomId,
-        isDeleted: { $ne: true }
-      }).sort({ createdAt: -1 });
+    const lastMsg = await Message.findOne({
+      roomId,
+      isDeleted: { $ne: true }
+    }).sort({ createdAt: -1 });
 
-      updatedLastMessage = lastMsg
-        ? {
+    updatedLastMessage = lastMsg
+      ? {
           text: lastMsg.message,
           senderId: lastMsg.senderId,
           createdAt: lastMsg.createdAt
         }
-        : null;
+      : null;
 
-      await ChatRoom.findByIdAndUpdate(msg.roomId, {
-        lastMessage: updatedLastMessage
-      });
-    }
+    await ChatRoom.findByIdAndUpdate(roomId, {
+      lastMessage: updatedLastMessage
+    });
 
     const io = req.app.get("io");
 
-    if (!io) {
-      console.warn("Socket.io not available");
-    } else {
-      io.to(msg.roomId.toString()).emit("message_deleted", {
-        messageId: msg._id,
-        roomId: msg.roomId
+    if (io) {
+      io.to(roomId.toString()).emit("messages_deleted", {
+        messageIds,
+        roomId
       });
-    }
 
-    io.to(msg.roomId.toString()).emit("message_deleted", {
-      messageId: msg._id,
-      roomId: msg.roomId
-    });
-
-    if (updatedLastMessage !== null) {
-      io.to(msg.roomId.toString()).emit("last_message_updated", {
-        roomId: msg.roomId,
+      io.to(roomId.toString()).emit("last_message_updated", {
+        roomId,
         lastMessage: updatedLastMessage
       });
     }
@@ -925,4 +918,4 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
       message: err.message || "Internal server error"
     });
   }
-}
+};
