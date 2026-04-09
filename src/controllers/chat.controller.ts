@@ -230,7 +230,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
           $elemMatch: { userId }
         }
       },
-       createdAt: {
+      createdAt: {
         $gte: startDate,
         $lte: endDate
       }
@@ -626,11 +626,26 @@ export const saveDeviceToken = async (req: AuthRequest, res: Response) => {
 
 export const deleteMessageForMe = async (req: AuthRequest, res: Response) => {
   try {
-    const { messageId } = req.query;
+    const { messageIds } = req.body; //
     const userId = String(req.user!.id);
 
-    const msg: any = await Message.findByIdAndUpdate(
-      messageId,
+    if (!messageIds || !Array.isArray(messageIds) || messageIds.length === 0) {
+      return res.status(400).json({
+        status: false,
+        message: "messageIds required"
+      });
+    }
+
+    const messages: any[] = await Message.find({
+      _id: { $in: messageIds }
+    });
+
+    if (!messages.length) {
+      return res.status(404).json({ status: false, message: "Messages not found" });
+    }
+
+    await Message.updateMany(
+      { _id: { $in: messageIds } },
       {
         $addToSet: {
           deletedFor: {
@@ -638,44 +653,49 @@ export const deleteMessageForMe = async (req: AuthRequest, res: Response) => {
             deletedAt: new Date()
           }
         }
-      },
-      { returnDocument: "after" }
+      }
     );
 
-    if (!msg) {
-      return res.status(404).json({ status: false });
-    }
+    const roomIds = [...new Set(messages.map(msg => String(msg.roomId)))];
 
-    // ✅ check if it was last message
-    const room = await ChatRoom.findById(msg.roomId);
+    for (const roomId of roomIds) {
+      const room: any = await ChatRoom.findById(roomId);
 
-    if (
-      room?.lastMessage?.createdAt &&
-      msg.createdAt &&
-      room.lastMessage.createdAt.toString() === msg.createdAt.toString()
-    ) {
-      const lastMsg = await Message.findOne({
-        roomId: msg.roomId,
-        isDeleted: { $ne: true },
-        deletedFor: {
-          $not: { $elemMatch: { userId } }
-        }
-      }).sort({ createdAt: -1 });
+      if (!room) continue;
 
-      await ChatRoom.findByIdAndUpdate(msg.roomId, {
-        lastMessage: lastMsg
-          ? {
-            text: lastMsg.message,
-            senderId: lastMsg.senderId,
-            createdAt: lastMsg.createdAt
+      // check if current lastMessage is deleted for this user
+      const isLastMsgDeleted = messages.some(
+        msg =>
+          String(msg.roomId) === String(roomId) &&
+          room.lastMessage?.createdAt &&
+          msg.createdAt &&
+          room.lastMessage.createdAt.toString() === msg.createdAt.toString()
+      );
+
+      if (isLastMsgDeleted) {
+        const lastMsg = await Message.findOne({
+          roomId,
+          isDeleted: { $ne: true },
+          deletedFor: {
+            $not: { $elemMatch: { userId } }
           }
-          : null
-      });
+        }).sort({ createdAt: -1 });
+
+        await ChatRoom.findByIdAndUpdate(roomId, {
+          lastMessage: lastMsg
+            ? {
+              text: lastMsg.message,
+              senderId: lastMsg.senderId,
+              createdAt: lastMsg.createdAt
+            }
+            : null
+        });
+      }
     }
 
     return res.json({
       status: true,
-      data: msg
+      message: "Messages deleted for user successfully"
     });
 
   } catch (err) {
