@@ -878,22 +878,20 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
 
     const updatedLastMessage = lastMsg
       ? {
-          text: lastMsg.message,
-          senderId: lastMsg.senderId,
-          createdAt: lastMsg.createdAt
-        }
+        text: lastMsg.message,
+        senderId: lastMsg.senderId,
+        createdAt: lastMsg.createdAt
+      }
       : null;
 
     await ChatRoom.findByIdAndUpdate(roomId, { lastMessage: updatedLastMessage });
 
     const io = req.app.get("io");
     if (io) {
-      for (const msg of messages) {
-        io.to(msg.roomId.toString()).emit("message_deleted", {
-          messageId: msg._id,
-          roomId: msg.roomId
-        });
-      }
+      io.to(roomId.toString()).emit("messages_deleted", {
+        messageIds: messages.map(m => m._id),
+        roomId
+      });
 
       if (updatedLastMessage) {
         io.to(roomId.toString()).emit("last_message_updated", {
