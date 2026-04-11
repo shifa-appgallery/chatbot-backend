@@ -81,4 +81,6 @@ router.put("/clear-chat-for-me", authorize, chatController.clearChatforMe);
 
 router.put("/delete-chat-for-everyone", authorize, chatController.deleteForEveryone);
 
+router.delete("/delete-user-device", authorize, chatController.deleteUserDevice);
+
 export default router;

@@ -51,6 +51,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   socket.on("send_message", async ({ roomId, message, messageType, mediaUrl }: SendMessagePayload) => {
     try {
       const senderId = String(socket.user?._id);
+      const senderName = socket.user?.name || "Unknown";
 
       const msg = await Messages.create({
         roomId,
@@ -208,7 +209,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         devices.map(device =>
           sendNotification(
             device.fcmToken,
-            "New Message",
+            senderName,
             message
           )
         )
