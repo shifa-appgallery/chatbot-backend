@@ -16,10 +16,15 @@ export const socketAuth = (socket: Socket, next: (err?: Error) => void) => {
     if (!token) return next(new Error("Authentication error"));
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as DecodedToken;
-    (socket as any).user = decoded;
+
+    (socket as any).user = {
+      ...decoded,
+      name: decoded.name || "Unknown"
+    };
+
     next();
 
-    console.log("decoded",decoded)
+    console.log("decoded", decoded);
   } catch (err) {
     next(new Error("Invalid token"));
   }

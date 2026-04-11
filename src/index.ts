@@ -25,16 +25,19 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
-app.set("io", io); 
+app.set("io", io);
 
 io.use((socket: AuthenticatedSocket, next) => {
-  const userId = socket.handshake.auth.userId;
+  const { userId, name } = socket.handshake.auth;
 
   console.log("Incoming userId:", userId);
 
   if (!userId) return next(new Error("invalid user id"));
 
-  socket.user = { _id: userId };
+  socket.user = {
+    _id: userId,
+    name: name || "Unknown"
+  };
 
   next();
 });
@@ -48,7 +51,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 const PORT = process.env.PORT || 3000;
 
 async function bootstrap() {
- try {
+  try {
     await connectWithSSH();
     console.log(" DB ready");
 
@@ -61,7 +64,7 @@ async function bootstrap() {
       console.log(` Server running on port ${PORT}`);
     });
 
-  }  catch (err) {
+  } catch (err) {
     console.error(" Startup failed:", err);
     process.exit(1);
   }
