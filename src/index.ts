@@ -12,7 +12,6 @@ import { chatHandler } from "./sockets/chatHandler";
 import { AuthenticatedSocket } from "./types/AuthenticatedSocket";
 import { connectWithSSH } from "./config/mysql";
 import { initUserModel } from "./models/mysql/User";
-import { socketAuth } from "./middleware/socketAuth";
 
 const app = express();
 app.use(cors());
@@ -26,16 +25,16 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
-app.set("io", io);
+app.set("io", io); 
 
 io.use((socket: AuthenticatedSocket, next) => {
-  const { userId } = socket.handshake.auth;
+  const userId = socket.handshake.auth.userId;
 
   console.log("Incoming userId:", userId);
 
   if (!userId) return next(new Error("invalid user id"));
 
-  io.use(socketAuth);
+  socket.user = { _id: userId };
 
   next();
 });
@@ -49,7 +48,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 const PORT = process.env.PORT || 3000;
 
 async function bootstrap() {
-  try {
+ try {
     await connectWithSSH();
     console.log(" DB ready");
 
@@ -62,7 +61,7 @@ async function bootstrap() {
       console.log(` Server running on port ${PORT}`);
     });
 
-  } catch (err) {
+  }  catch (err) {
     console.error(" Startup failed:", err);
     process.exit(1);
   }
