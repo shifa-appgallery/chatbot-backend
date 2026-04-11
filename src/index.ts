@@ -12,6 +12,7 @@ import { chatHandler } from "./sockets/chatHandler";
 import { AuthenticatedSocket } from "./types/AuthenticatedSocket";
 import { connectWithSSH } from "./config/mysql";
 import { initUserModel } from "./models/mysql/User";
+import { socketAuth } from "./middleware/socketAuth";
 
 const app = express();
 app.use(cors());
@@ -28,16 +29,13 @@ const io = new Server(server, {
 app.set("io", io);
 
 io.use((socket: AuthenticatedSocket, next) => {
-  const { userId, name } = socket.handshake.auth;
+  const { userId } = socket.handshake.auth;
 
   console.log("Incoming userId:", userId);
 
   if (!userId) return next(new Error("invalid user id"));
 
-  socket.user = {
-    _id: userId,
-    name: name || "Unknown"
-  };
+  io.use(socketAuth);
 
   next();
 });
