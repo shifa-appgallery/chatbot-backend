@@ -213,33 +213,51 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     const now = new Date();
 
-    const endDate = new Date();
-    endDate.setDate(now.getDate() - startNum);
-    endDate.setHours(23, 59, 59, 999);
+    let daysChecked = 0;
+    let daysWithData = 0;
+    let allMessages: any[] = [];
 
-    const startDate = new Date();
-    startDate.setDate(now.getDate() - (endNum - 1));
-    startDate.setHours(0, 0, 0, 0);
+    let currentDayOffset = startNum;
 
-    const messages = await Message.find({
-      roomId,
-      // isDeleted: { $ne: true },
-      deletedFor: {
-        $not: {
-          $elemMatch: { userId }
+    while (daysWithData < endNum) {
+      const dayStart = new Date();
+      dayStart.setDate(now.getDate() - currentDayOffset);
+      dayStart.setHours(0, 0, 0, 0);
+
+      const dayEnd = new Date();
+      dayEnd.setDate(now.getDate() - currentDayOffset);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const messages = await Message.find({
+        roomId,
+        deletedFor: {
+          $not: {
+            $elemMatch: { userId }
+          }
+        },
+        createdAt: {
+          $gte: dayStart,
+          $lte: dayEnd
         }
-      },
-      createdAt: {
-        $gte: startDate,
-        $lte: endDate
+      }).sort({ createdAt: 1 });
+
+      daysChecked++;
+
+      if (messages.length > 0) {
+        allMessages.push(...messages);
+        daysWithData++; 
       }
-    })
-      .sort({ createdAt: 1 })
+
+      currentDayOffset++; 
+      if (daysChecked > 30) break;
+    }
+
     return res.json({
       status: true,
-      count: messages.length,
-      data: messages
+      count: allMessages.length,
+      data: allMessages
     });
+
   } catch (err) {
     console.error("getRoomMessages error:", err);
     return res.status(500).json({
