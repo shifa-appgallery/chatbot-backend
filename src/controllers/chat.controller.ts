@@ -922,3 +922,42 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+export const deleteUserDevice = async (req: AuthRequest, res: Response) => {
+  try {
+    const { fcmToken } = req.query;
+    const userId = String(req.user!.id);
+
+    if (!fcmToken) {
+      return res.status(400).json({
+        status: false,
+        message: "fcmToken is required"
+      });
+    }
+
+    const deletedDevice = await UserDevice.findOneAndDelete({
+      userId,
+      fcmToken
+    });
+
+    if (!deletedDevice) {
+      return res.status(404).json({
+        status: false,
+        message: "Device not found"
+      });
+    }
+
+    return res.json({
+      status: true,
+      message: "Device deleted successfully"
+    });
+
+  } catch (err: any) {
+    console.error("Error while deleting user device", err);
+
+    return res.status(500).json({
+      status: false,
+      message: err.message || "Internal server error"
+    });
+  }
+};
