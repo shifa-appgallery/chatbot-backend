@@ -81,4 +81,6 @@ router.put("/clear-chat-for-me", authorize, chatController.clearChatforMe);
 
 router.put("/delete-chat-for-everyone", authorize, chatController.deleteForEveryone);
 
+router.post("/create-group-for-team", chatController.createGroupsFromTeams);
+
 export default router;

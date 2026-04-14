@@ -12,6 +12,7 @@ import { chatHandler } from "./sockets/chatHandler";
 import { AuthenticatedSocket } from "./types/AuthenticatedSocket";
 import { connectWithSSH } from "./config/mysql";
 import { initUserModel } from "./models/mysql/User";
+import {initTeamUsersModel} from "./models/mysql/TeamUsers"
 
 const app = express();
 app.use(cors());
@@ -53,6 +54,7 @@ async function bootstrap() {
     console.log(" DB ready");
 
     initUserModel();
+    initTeamUsersModel();
 
     await connectDB();
     console.log("MongoDB connected");

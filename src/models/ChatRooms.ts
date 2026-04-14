@@ -16,6 +16,12 @@ const chatRoomsSchema = new mongoose.Schema({
     default: null
   },
 
+  teamId: {
+    type: String,
+    required: false,
+    index: true
+  },
+
   participants: [
     {
       userId: {
