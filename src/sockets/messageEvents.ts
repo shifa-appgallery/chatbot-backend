@@ -26,7 +26,6 @@ interface MarkDeliveredPayload {
 
 export default (socket: AuthenticatedSocket, io: Server) => {
 
-  // Send current unread counts for all rooms this user is in
   (async () => {
     const userId = String(socket.user?._id);
 

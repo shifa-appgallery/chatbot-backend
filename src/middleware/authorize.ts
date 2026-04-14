@@ -17,7 +17,6 @@ export interface AuthRequest extends Request {
 
 export const authorize = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    // ✅ Read token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       return res.status(401).json({ error: "Authorization header missing" });
@@ -25,10 +24,8 @@ export const authorize = async (req: AuthRequest, res: Response, next: NextFunct
 
     const token = authHeader.split(" ")[1];
     if (!token) return res.status(401).json({ error: "Token missing" });
-    // ✅ Decode JWT
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as { id?: number; email: string };
 
-    // ✅ Get user either from decoded id or email
     let user: User | null = null;
     if (decoded.id) {
       user = await User.findOne({ where: { id: decoded.id } });
@@ -41,13 +38,11 @@ export const authorize = async (req: AuthRequest, res: Response, next: NextFunct
       return res.status(401).json({ error: "User not found" });
     }
 
-    // ✅ Optional: if frontend sends email header, verify it matches
     const emailHeader = req.headers.email as string;
     if (emailHeader && emailHeader !== user.email) {
       return res.status(401).json({ error: "Email mismatch" });
     }
 
-    // ✅ Attach user to request
     req.user = {
       id: user.id,
       email: user.email,

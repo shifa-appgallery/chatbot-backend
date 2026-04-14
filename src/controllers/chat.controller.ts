@@ -7,6 +7,9 @@ import { AuthRequest } from "../middleware/authorize";
 import { Op } from "sequelize";
 import { User } from "../models/mysql/User";
 import UserDevice from "../models/UserDevice";
+import { TeamUsers } from "../models/mysql/TeamUsers";
+import { getSequelize } from "../config/mysql";
+import { PROFILE_URL, TEAM_LOGO_URL } from "../constant/url";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -150,6 +153,7 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
   }
 };
 
+
 export const sendMessage = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId, message, messageType, mediaUrl } = req.body;
@@ -179,7 +183,7 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       message,
       messageType,
       mediaUrl,
-      deliveredTo   // 🔥 NEW (delivery tracking)
+      deliveredTo
     });
 
     await ChatRoom.findByIdAndUpdate(roomId, {
@@ -245,10 +249,10 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
       if (messages.length > 0) {
         allMessages.push(...messages);
-        daysWithData++;
+        daysWithData++; 
       }
 
-      currentDayOffset++;
+      currentDayOffset++; 
       if (daysChecked > 30) break;
     }
 
@@ -304,7 +308,6 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
     const formattedRooms = await Promise.all(
       rooms.map(async (room: any) => {
 
-        // 🔥 IMPORTANT: get last visible message
         const lastMsg = await Message.findOne({
           roomId: room._id,
           isDeleted: { $ne: true },
@@ -350,7 +353,6 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
 
           roomId: room.roomId,
 
-          // ✅ FIXED HERE
           lastMessage: lastMsg?.message || "",
           lastMessageDate: lastMsg?.createdAt || null,
 
@@ -612,7 +614,7 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
     const result = await Message.updateMany(
       {
         roomId,
-        senderId: { $ne: userId }, // ❗ don't mark own messages
+        senderId: { $ne: userId },
         "readBy.userId": { $ne: userId }
       },
       {
@@ -977,6 +979,162 @@ export const deleteUserDevice = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       status: false,
       message: err.message || "Internal server error"
+    });
+  }
+};
+
+export const createGroupsFromTeams = async (req: Request, res: Response) => {
+  try {
+    const sequelize = getSequelize();
+
+    // 1. Get team users WITH role_id
+    const teamUsers = await TeamUsers.findAll({
+      where: {
+        isDelete: 0,
+        status: 1
+      },
+      attributes: ["team_id", "user_id", "role_id"],
+      raw: true
+    });
+
+    // 2. Group by team_id
+    const teamMap: Record<string, any[]> = {};
+
+    for (const row of teamUsers) {
+      if (!teamMap[row.team_id]) {
+        teamMap[row.team_id] = [];
+      }
+      teamMap[row.team_id].push(row);
+    }
+
+    const teamIds = Object.keys(teamMap);
+    console.log("Total teams:", teamIds.length);
+
+    // 3. Fetch existing groups
+    const existingRooms = await ChatRoom.find({
+      isGroup: true,
+      teamId: { $in: teamIds }
+    });
+
+    const existingRoomMap = new Map(
+      existingRooms.map((room: any) => [String(room.teamId), room])
+    );
+
+    // 4. Fetch roles dynamically
+    const [roles]: any = await sequelize.query(`
+      SELECT id, title FROM roles 
+      WHERE title IN ('admin', 'Team Manager')
+    `);
+
+    const adminRoleIds = new Set(roles.map((r: any) => r.id));
+
+    // 5. Fetch teams (logo + name)
+    const [teams]: any = await sequelize.query(
+      `SELECT id, logo, name FROM teams WHERE id IN (:teamIds)`,
+      { replacements: { teamIds } }
+    );
+
+    const teamLogoMap: Record<string, string> = {};
+    const teamNameMap: Record<string, string> = {};
+
+    for (const t of teams) {
+      if (t.logo) {
+        teamLogoMap[String(t.id)] = TEAM_LOGO_URL + t.logo;
+      }
+      if (t.name) {
+        teamNameMap[String(t.id)] = t.name;
+      }
+    }
+
+    let createdCount = 0;
+    let updatedCount = 0;
+
+    // 6. Loop teams
+    for (const teamId of teamIds) {
+      const teamRows = teamMap[teamId];
+      if (!teamRows.length) continue;
+
+      const userIds = teamRows.map((r) => r.user_id);
+
+      // 7. Fetch users
+      const users: any = await User.findAll({
+        where: { id: { [Op.in]: userIds } },
+        attributes: ["id", "first_name", "last_name", "profile_picture"],
+        raw: true
+      });
+
+      if (!users.length) continue;
+
+      // 8. Prepare participants
+      const participants = users.map((u: any) => {
+        const teamUser = teamRows.find(
+          (r) => String(r.user_id) === String(u.id)
+        );
+
+        const isAdmin = adminRoleIds.has(teamUser?.role_id);
+
+        return {
+          userId: String(u.id),
+          first_Name: u.first_name || "",
+          last_name: u.last_name || "",
+          profile_picture: u.profile_picture
+            ? PROFILE_URL + u.profile_picture //  FIXED
+            : "",
+          role: isAdmin ? "admin" : "member",
+          joinedAt: new Date()
+        };
+      });
+
+      const groupImage = teamLogoMap[teamId] || null;
+      const groupName = teamNameMap[teamId] || `Team ${teamId}`;
+
+      const existingRoom = existingRoomMap.get(teamId);
+
+      // 9. CREATE OR UPDATE
+      if (!existingRoom) {
+        //  CREATE
+        await ChatRoom.create({
+          name: groupName,
+          isGroup: true,
+          teamId,
+          groupImage,
+          participants,
+          createdBy:
+            participants.find((p: any) => p.role === "admin")?.userId ||
+            participants[0]?.userId ||
+            null
+        });
+
+        createdCount++;
+      } else {
+        //  UPDATE
+        existingRoom.name = groupName;
+        existingRoom.groupImage = groupImage;
+        existingRoom.participants = participants;
+
+        existingRoom.createdBy =
+          participants.find((p: any) => p.role === "admin")?.userId ||
+          participants[0]?.userId ||
+          null;
+
+        await existingRoom.save();
+
+        updatedCount++;
+      }
+    }
+
+    return res.json({
+      status: true,
+      message: "Groups processed successfully",
+      totalTeams: teamIds.length,
+      created: createdCount,
+      updated: updatedCount
+    });
+
+  } catch (err) {
+    console.error("create group error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
     });
   }
 };

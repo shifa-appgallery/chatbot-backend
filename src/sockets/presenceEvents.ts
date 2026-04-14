@@ -26,10 +26,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       console.log("User connected:", userId, socket.id);
 
-      // ✅ Notify others that user came online
       socket.broadcast.emit("user_online", { userId });
 
-      // ✅ SEND FULL LIST (but optimized)
       const onlineUsers = await UserPresence.find(
         { isOnline: true },
         { userId: 1, _id: 0 } // 👈 only fetch required field
@@ -44,12 +42,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     }
   })();
 
-  // --- ON DISCONNECT ---
   socket.on("disconnect", async () => {
     try {
       console.log("User disconnected:", userId, "Socket:", socket.id);
 
-      // ✅ Directly mark offline (no need to check sockets)
       await UserPresence.updateOne(
         { userId },
         {
