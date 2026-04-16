@@ -23,7 +23,10 @@ app.use("/api", apiRoutes);
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: { 
+    origin: "*",
+    credentials : true
+   }
 });
 
 app.set("io", io); 
