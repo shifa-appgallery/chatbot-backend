@@ -19,7 +19,7 @@ const corsOptions = {
   origin: '*', 
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
   allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
-  credentials: true, // Allow cookies to be sent
+  credentials: false, // Allow cookies to be sent
 };
 
 app.use(cors(corsOptions));
