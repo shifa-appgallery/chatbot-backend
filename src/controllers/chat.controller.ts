@@ -95,12 +95,16 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       if (id === currentUserId) {
         first_Name = currentUser.first_name;
         last_name = currentUser.last_name;
-        profile_picture = currentUser.profile_picture || "";
+        profile_picture = currentUser.profile_picture
+          ? PROFILE_URL + currentUser.profile_picture
+          : "";
       } else {
         const user = userMap[id];
         first_Name = user?.first_name || "";
         last_name = user?.last_name || "";
-        profile_picture = user?.profile_picture || "";
+        profile_picture = user?.profile_picture
+          ? PROFILE_URL + user.profile_picture
+          : "";
       }
 
       return {
@@ -249,10 +253,10 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
       if (messages.length > 0) {
         allMessages.push(...messages);
-        daysWithData++; 
+        daysWithData++;
       }
 
-      currentDayOffset++; 
+      currentDayOffset++;
       if (daysChecked > 30) break;
     }
 
