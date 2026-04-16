@@ -16,7 +16,7 @@ import {initTeamUsersModel} from "./models/mysql/TeamUsers"
 
 const app = express();
 const corsOptions = {
-  origin: '*', 
+  origin: 'https://dev.wefroth.com', 
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
   allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
   credentials: false, // Allow cookies to be sent
@@ -31,7 +31,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: { 
-    origin: "*",
+    origin: "https://dev.wefroth.com",
     credentials : true
    }
 });
