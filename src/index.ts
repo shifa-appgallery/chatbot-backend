@@ -15,7 +15,14 @@ import { initUserModel } from "./models/mysql/User";
 import {initTeamUsersModel} from "./models/mysql/TeamUsers"
 
 const app = express();
-app.use(cors());
+const corsOptions = {
+  origin: '*', 
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
+  allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
+  credentials: true, // Allow cookies to be sent
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use("/api", apiRoutes);
