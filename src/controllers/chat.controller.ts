@@ -515,7 +515,7 @@ export const removeParticipant = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const updatedRoom = await ChatRoom.findByIdAndUpdate(
+    const updatedRoom: any = await ChatRoom.findByIdAndUpdate(
       roomId,
       {
         $pull: {
@@ -524,6 +524,21 @@ export const removeParticipant = async (req: AuthRequest, res: Response) => {
       },
       { returnDocument: "after" }
     );
+
+    if (!updatedRoom) {
+      return res.status(404).json({
+        message: "Room not found after update"
+      });
+    }
+
+    if (updatedRoom.participants.length <= 1) {
+      await ChatRoom.findByIdAndDelete(roomId);
+
+      return res.json({
+        status: true,
+        message: "Group deleted as only one participant remained"
+      });
+    }
 
     return res.json({
       status: true,
@@ -1195,6 +1210,77 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
 
   } catch (err) {
     console.error("create group error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
+  }
+};
+
+export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
+  try {
+    const { roomId, name, groupImage } = req.body;
+
+    const currentUserId = String(req.user!.id);
+
+    const room: any = await ChatRoom.findById(roomId);
+
+    if (!room) {
+      return res.status(404).json({
+        message: "Room not found"
+      });
+    }
+
+    if (!room.isGroup) {
+      return res.status(400).json({
+        message: "This is not a group"
+      });
+    }
+
+    const isParticipant = room.participants.some(
+      (p: any) => p.userId === currentUserId
+    );
+
+    if (!isParticipant) {
+      return res.status(403).json({
+        message: "You are not part of this group"
+      });
+    }
+
+    const updateData: any = {};
+
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+
+    if (groupImage !== undefined) {
+      updateData.groupImage = groupImage;
+    }
+
+    const updatedRoom = await ChatRoom.findByIdAndUpdate(
+      roomId,
+      { $set: updateData },
+      { returnDocument: "after" }
+    );
+
+    if (!updatedRoom) {
+      return res.status(404).json({
+        message: "Room not found after update"
+      });
+    }
+
+    const roomObj = updatedRoom.toObject();
+
+    if (roomObj.groupImage) {
+      roomObj.groupImage = TEAM_LOGO_URL + roomObj.groupImage;
+    }
+
+    return res.json({
+      status: true,
+      data: roomObj
+    });
+
+  } catch (err) {
+    console.error("updateGroupDetails error:", err);
     return res.status(500).json({
       message: "Internal server error"
     });
