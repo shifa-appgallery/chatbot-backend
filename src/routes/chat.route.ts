@@ -84,6 +84,6 @@ router.put("/delete-chat-for-everyone", authorize, chatController.deleteForEvery
 router.delete("/delete-user-device", authorize, chatController.deleteUserDevice);
 
 router.post("/create-group-for-team", chatController.createGroupsFromTeams);
-router.put("/update-group-details", chatController.updateGroupDetails);
+router.put("/update-group-details", authorize, chatController.updateGroupDetails);
 
 export default router;
