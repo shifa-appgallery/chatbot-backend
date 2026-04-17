@@ -13,7 +13,7 @@ import { PROFILE_URL, TEAM_LOGO_URL } from "../constant/url";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, participantIds = [], isGroup } = req.body;
+    const { name, participantIds = [], isGroup, groupImage } = req.body;
 
     const currentUser = req.user!;
     const currentUserId = String(currentUser.id);
@@ -120,6 +120,9 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
     const room = await ChatRoom.create({
       name: isGroup ? name : "",
       isGroup: !!isGroup,
+      groupImage: isGroup && groupImage
+        ? groupImage
+        : "",
       participants,
       createdBy: currentUserId
     });
@@ -409,9 +412,29 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId, userId } = req.body;
 
-    const user = await User.findOne({
+    const currentUserId = String(req.user!.id);
+
+    const room: any = await ChatRoom.findById(roomId);
+
+    if (!room) {
+      return res.status(404).json({
+        message: "Room not found"
+      });
+    }
+
+    const currentUser = room.participants.find(
+      (p: any) => p.userId === currentUserId
+    );
+
+    if (!currentUser || currentUser.role !== "admin") {
+      return res.status(403).json({
+        message: "Only admin can add participants"
+      });
+    }
+
+    const user: any = await User.findOne({
       where: { id: userId },
-      attributes: ["id"]
+      attributes: ["id", "first_name", "last_name", "profile_picture"]
     });
 
     if (!user) {
@@ -420,12 +443,27 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const room = await ChatRoom.findByIdAndUpdate(
+    const alreadyExists = room.participants.some(
+      (p: any) => p.userId === String(userId)
+    );
+
+    if (alreadyExists) {
+      return res.status(400).json({
+        message: "User already in group"
+      });
+    }
+
+    const updatedRoom = await ChatRoom.findByIdAndUpdate(
       roomId,
       {
-        $addToSet: {
+        $push: {
           participants: {
             userId: String(userId),
+            first_Name: user.first_name,
+            last_name: user.last_name,
+            profile_picture: user.profile_picture
+              ? PROFILE_URL + user.profile_picture
+              : "",
             role: "member",
             joinedAt: new Date()
           }
@@ -436,8 +474,9 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       status: true,
-      data: room
+      data: updatedRoom
     });
+
   } catch (err) {
     console.error("addParticipant error:", err);
     return res.status(500).json({
@@ -450,11 +489,29 @@ export const removeParticipant = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId, userId } = req.body;
 
-    const room = await ChatRoom.findById(roomId);
+    const currentUserId = String(req.user!.id);
+
+    const room: any = await ChatRoom.findById(roomId);
 
     if (!room) {
       return res.status(404).json({
         message: "Room not found"
+      });
+    }
+
+    const currentUser = room.participants.find(
+      (p: any) => p.userId === currentUserId
+    );
+
+    if (!currentUser || currentUser.role !== "admin") {
+      return res.status(403).json({
+        message: "Only admin can remove participants"
+      });
+    }
+
+    if (String(userId) === currentUserId) {
+      return res.status(400).json({
+        message: "Admin cannot remove themselves"
       });
     }
 
@@ -472,6 +529,7 @@ export const removeParticipant = async (req: AuthRequest, res: Response) => {
       status: true,
       data: updatedRoom
     });
+
   } catch (err) {
     console.error("removeParticipant error:", err);
     return res.status(500).json({
