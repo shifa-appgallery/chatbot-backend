@@ -33,7 +33,9 @@ const io = new Server(server, {
   cors: { 
     origin: "*",
     credentials : true
-   }
+   },
+   transports:["websocket","polling"],
+   perMessageDeflate:false
 });
 
 app.set("io", io); 
