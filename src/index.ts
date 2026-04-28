@@ -42,6 +42,15 @@ app.set("io", io);
 
 import { User } from "./models/mysql/User";
 
+io.use((socket, next) => {
+  console.log("🔍 HANDSHAKE DEBUG START");
+  console.log("AUTH:", socket.handshake.auth);
+  console.log("QUERY:", socket.handshake.query);
+  console.log("HEADERS:", socket.handshake.headers);
+  console.log("🔍 HANDSHAKE DEBUG END");
+  next();
+});
+
 io.use(async (socket: AuthenticatedSocket, next) => {
   try {
     const userId = socket.handshake.auth.userId;
