@@ -34,7 +34,7 @@ const io = new Server(server, {
     origin: "*",
     credentials: true
   },
-  transports: ["websocket", "polling"],
+  transports: ["websocket"],
   perMessageDeflate: false
 });
 
@@ -76,6 +76,15 @@ io.use(async (socket: AuthenticatedSocket, next) => {
 
 io.on("connection", (socket: AuthenticatedSocket) => {
   console.log("✅ User connected:", socket.user?._id, socket.id);
+
+   socket.on("disconnect", (reason) => {
+    console.log("❌ DISCONNECT REASON:", reason);
+  });
+
+  socket.on("error", (err) => {
+    console.error("🚨 SOCKET ERROR:", err);
+  });
+
 
   chatHandler(io, socket);
 });
