@@ -75,7 +75,7 @@ io.use(async (socket: AuthenticatedSocket, next) => {
 });
 
 io.on("connection", (socket: AuthenticatedSocket) => {
-  console.log("User connected:", socket.user?._id);
+  console.log("✅ User connected:", socket.user?._id, socket.id);
 
   chatHandler(io, socket);
 });
