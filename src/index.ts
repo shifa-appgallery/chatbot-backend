@@ -34,7 +34,7 @@ const io = new Server(server, {
     origin: "*",
     credentials: true
   },
-  transports: ["websocket"],
+  transports: ["websocket", "polling"],
   perMessageDeflate: false
 });
 
