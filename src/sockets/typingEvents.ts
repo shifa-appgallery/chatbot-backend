@@ -9,6 +9,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   socket.on("typing_start", ({ roomId }: TypingPayload) => {
     socket.to(roomId).emit("typing", {
       userId: socket.user?._id,
+      senderName: `${socket.user?.first_name} ${socket.user?.last_name}`,
       typing: true
     });
   });
@@ -16,6 +17,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   socket.on("typing_stop", ({ roomId }: TypingPayload) => {
     socket.to(roomId).emit("typing", {
       userId: socket.user?._id,
+      senderName: `${socket.user?.first_name} ${socket.user?.last_name}`,
       typing: false
     });
   });

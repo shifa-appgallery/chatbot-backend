@@ -62,6 +62,16 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       const room = await ChatRooms.findById(roomId);
       if (!room) return;
 
+      const senderParticipant = room.participants.find(
+        (p: any) => String(p.userId) === senderId
+      );
+
+      const senderName = senderParticipant
+        ? `${senderParticipant.first_Name} ${senderParticipant.last_name}`
+        : "Unknown";
+
+      const senderProfile = senderParticipant?.profile_picture || null;
+
       const receiverIds = room.participants
         .map(p => p.userId)
         .filter(id => id !== senderId);
@@ -141,7 +151,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         if (presence && presence.socketIds?.length > 0) {
           presence.socketIds.forEach((socketId: string) => {
             io.to(socketId).emit("room_updated", payload);
-            io.to(socketId).emit("receive_message", msg);
+            io.to(socketId).emit("receive_message", {
+              ...msg.toObject(),
+              senderName,
+              senderProfile
+            });
           });
         }
 
@@ -154,11 +168,17 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
       });
 
-      io.to(roomId.toString()).emit("receive_message", msg);
-      socket.emit("message_sent", msg);
+      io.to(roomId.toString()).emit("receive_message", {
+        ...msg.toObject(),
+        senderName,
+        senderProfile
+      });
+      socket.emit("message_sent", {
+        ...msg.toObject(),
+        senderName,
+        senderProfile
+      });
 
-      // 🔥 NEW: COMBINED USERS
-      // const usersToNotify = [...usersInOtherRoom, ...offlineUsers];
       const usersToNotify = [...receiverIds];
 
       const prefs = await UserPreference.find({

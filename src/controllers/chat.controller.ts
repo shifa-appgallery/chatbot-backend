@@ -230,6 +230,20 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     let currentDayOffset = startNum;
 
+    const room: any = await ChatRoom.findById(roomId);
+
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    const userMap = new Map();
+    room.participants.forEach((p: any) => {
+      userMap.set(p.userId, {
+        fullName: `${p.first_Name} ${p.last_name}`,
+        profile_picture: p.profile_picture || null
+      });
+    });
+
     while (daysWithData < endNum) {
       const dayStart = new Date();
       dayStart.setDate(now.getDate() - currentDayOffset);
@@ -255,7 +269,18 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       daysChecked++;
 
       if (messages.length > 0) {
-        allMessages.push(...messages);
+
+        const formattedMessages = messages.map((msg: any) => {
+          const sender = userMap.get(msg.senderId);
+
+          return {
+            ...msg.toObject(),
+            senderName: sender?.fullName || "Unknown",
+            senderProfile: sender?.profile_picture || null
+          };
+        });
+
+        allMessages.push(...formattedMessages);
         daysWithData++;
       }
 
@@ -341,16 +366,23 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
         }
 
         const groupMembers = room.participants.map((p: any) => ({
+          userId: p.userId,
           fullName: `${p.first_Name} ${p.last_name}`,
           profile_picture: p.profile_picture || null,
           isOnline: false,
-          unreadCount: p.unreadCount || 0
+          unreadCount: p.unreadCount || 0,
+          role: p.role,
+          isAdmin: p.role === "admin"
         }));
 
         const receiverUserId =
           !room.isGroup && otherParticipants.length > 0
             ? otherParticipants[0].userId
             : null;
+
+        const adminIds = room.participants
+          .filter((p: any) => p.role === "admin")
+          .map((p: any) => p.userId);
 
         return {
           _id: room._id,
@@ -369,6 +401,8 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
 
           isOnline: false,
           unreadCount: currentUserParticipant?.unreadCount || 0,
+
+          adminIds,
 
           groupMembers: room.isGroup ? groupMembers : undefined
         };
@@ -410,9 +444,15 @@ export const getRoomById = async (req: AuthRequest, res: Response) => {
 
 export const addParticipant = async (req: AuthRequest, res: Response) => {
   try {
-    const { roomId, userId } = req.body;
+    const { roomId, userIds } = req.body;
 
     const currentUserId = String(req.user!.id);
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({
+        message: "userIds must be a non-empty array"
+      });
+    }
 
     const room: any = await ChatRoom.findById(roomId);
 
@@ -432,24 +472,37 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const user: any = await User.findOne({
-      where: { id: userId },
+    const users: any[] = await User.findAll({
+      where: { id: userIds },
       attributes: ["id", "first_name", "last_name", "profile_picture"]
     });
 
-    if (!user) {
+    if (!users.length) {
       return res.status(400).json({
-        message: "Invalid userId"
+        message: "No valid users found"
       });
     }
 
-    const alreadyExists = room.participants.some(
-      (p: any) => p.userId === String(userId)
+    const existingUserIds = new Set(
+      room.participants.map((p: any) => String(p.userId))
     );
 
-    if (alreadyExists) {
+    const newParticipants = users
+      .filter(user => !existingUserIds.has(String(user.id)))
+      .map(user => ({
+        userId: String(user.id),
+        first_Name: user.first_name,
+        last_name: user.last_name,
+        profile_picture: user.profile_picture
+          ? PROFILE_URL + user.profile_picture
+          : "",
+        role: "member",
+        joinedAt: new Date()
+      }));
+
+    if (newParticipants.length === 0) {
       return res.status(400).json({
-        message: "User already in group"
+        message: "All users already exist in group"
       });
     }
 
@@ -458,14 +511,7 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
       {
         $push: {
           participants: {
-            userId: String(userId),
-            first_Name: user.first_name,
-            last_name: user.last_name,
-            profile_picture: user.profile_picture
-              ? PROFILE_URL + user.profile_picture
-              : "",
-            role: "member",
-            joinedAt: new Date()
+            $each: newParticipants
           }
         }
       },
@@ -474,6 +520,7 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       status: true,
+      addedCount: newParticipants.length,
       data: updatedRoom
     });
 

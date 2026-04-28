@@ -12,11 +12,11 @@ import { chatHandler } from "./sockets/chatHandler";
 import { AuthenticatedSocket } from "./types/AuthenticatedSocket";
 import { connectWithSSH } from "./config/mysql";
 import { initUserModel } from "./models/mysql/User";
-import {initTeamUsersModel} from "./models/mysql/TeamUsers"
+import { initTeamUsersModel } from "./models/mysql/TeamUsers"
 
 const app = express();
 const corsOptions = {
-  origin: '*', 
+  origin: '*',
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
   allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
   credentials: true, // Allow cookies to be sent
@@ -30,26 +30,39 @@ app.use("/api", apiRoutes);
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: { 
+  cors: {
     origin: "*",
-    credentials : true
-   },
-   transports:["websocket","polling"],
-   perMessageDeflate:false
+    credentials: true
+  },
+  transports: ["websocket", "polling"],
+  perMessageDeflate: false
 });
 
-app.set("io", io); 
+app.set("io", io);
 
-io.use((socket: AuthenticatedSocket, next) => {
-  const userId = socket.handshake.auth.userId;
+import { User } from "./models/mysql/User";
 
-  console.log("Incoming userId:", userId);
+io.use(async (socket: AuthenticatedSocket, next) => {
+  try {
+    const userId = socket.handshake.auth.userId;
 
-  if (!userId) return next(new Error("invalid user id"));
+    if (!userId) return next(new Error("invalid user id"));
 
-  socket.user = { _id: userId };
+    const user = await User.findByPk(userId);
 
-  next();
+    if (!user) return next(new Error("user not found"));
+
+    socket.user = {
+      _id: String(user.id),
+      first_name: user.first_name,
+      last_name: user.last_name,
+      profile_picture: user.profile_picture
+    };
+
+    next();
+  } catch (err) {
+    next(new Error("authentication error"));
+  }
 });
 
 io.on("connection", (socket: AuthenticatedSocket) => {
@@ -61,7 +74,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 const PORT = process.env.PORT || 3000;
 
 async function bootstrap() {
- try {
+  try {
     await connectWithSSH();
     console.log(" DB ready");
 
@@ -75,7 +88,7 @@ async function bootstrap() {
       console.log(` Server running on port ${PORT}`);
     });
 
-  }  catch (err) {
+  } catch (err) {
     console.error(" Startup failed:", err);
     process.exit(1);
   }
