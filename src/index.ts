@@ -57,7 +57,9 @@ io.use((socket, next) => {
 
 io.use(async (socket: AuthenticatedSocket, next) => {
   try {
-    const userId = socket.handshake.auth.userId;
+    const userId =
+      socket.handshake.auth?.userId ||
+      socket.handshake.query.userId;
 
     if (!userId) return next(new Error("invalid user id"));
 
@@ -81,7 +83,7 @@ io.use(async (socket: AuthenticatedSocket, next) => {
 io.on("connection", (socket: AuthenticatedSocket) => {
   console.log("✅ User connected:", socket.user?._id, socket.id);
 
-   socket.on("disconnect", (reason) => {
+  socket.on("disconnect", (reason) => {
     console.log("❌ DISCONNECT REASON:", reason);
   });
 
