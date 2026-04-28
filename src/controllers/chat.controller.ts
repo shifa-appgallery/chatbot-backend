@@ -244,6 +244,15 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       });
     });
 
+    const totalCount = await Message.countDocuments({
+      roomId,
+      deletedFor: {
+        $not: {
+          $elemMatch: { userId }
+        }
+      }
+    });
+
     while (daysWithData < endNum) {
       const dayStart = new Date();
       dayStart.setDate(now.getDate() - currentDayOffset);
@@ -290,7 +299,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       status: true,
-      count: allMessages.length,
+      count: totalCount,
       data: allMessages
     });
 
