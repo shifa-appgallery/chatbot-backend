@@ -38,6 +38,10 @@ const io = new Server(server, {
   perMessageDeflate: false
 });
 
+io.engine.on("connection_error", (err) => {
+  console.log("🚨 ENGINE ERROR:", err);
+});
+
 app.set("io", io);
 
 import { User } from "./models/mysql/User";
