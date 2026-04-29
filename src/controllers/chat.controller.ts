@@ -10,6 +10,7 @@ import UserDevice from "../models/UserDevice";
 import { TeamUsers } from "../models/mysql/TeamUsers";
 import { getSequelize } from "../config/mysql";
 import { PROFILE_URL, TEAM_LOGO_URL } from "../constant/url";
+import mongoose from "mongoose";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -318,6 +319,8 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     const limitDays = parseInt(days as string, 10) || 2;
 
+    const roomObjectId = new mongoose.Types.ObjectId(roomId as string);
+
     const room: any = await ChatRoom.findById(roomId);
     if (!room) {
       return res.status(404).json({ message: "Room not found" });
@@ -340,7 +343,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
     const distinctDates = await Message.aggregate([
       {
         $match: {
-          roomId,
+          roomId:roomObjectId,
           deletedFor: {
             $not: { $elemMatch: { userId } }
           },
