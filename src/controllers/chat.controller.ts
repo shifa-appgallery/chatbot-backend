@@ -316,7 +316,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
     const { roomId, lastDate, days = '2' } = req.query;
     const userId = String(req.user!.id);
 
-    const daysNum = parseInt(days as string, 10);
+    const limitDays = parseInt(days as string, 10) || 2;
 
     const room: any = await ChatRoom.findById(roomId);
     if (!room) {
@@ -325,19 +325,68 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     const userMap = new Map();
     room.participants.forEach((p: any) => {
-      userMap.set(p.userId, {
+      userMap.set(String(p.userId), {
         fullName: `${p.first_Name} ${p.last_name}`,
         profile_picture: p.profile_picture || null
       });
     });
 
+    // 🔹 Anchor date
     const anchorDate =
       lastDate && lastDate !== 'null'
         ? new Date(lastDate as string)
         : new Date();
 
-    const fromDate = new Date(anchorDate);
-    fromDate.setDate(anchorDate.getDate() - daysNum);
+    const distinctDates = await Message.aggregate([
+      {
+        $match: {
+          roomId,
+          deletedFor: {
+            $not: { $elemMatch: { userId } }
+          },
+          createdAt: { $lt: anchorDate }
+        }
+      },
+      {
+        $project: {
+          date: {
+            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+          }
+        }
+      },
+      {
+        $group: {
+          _id: "$date"
+        }
+      },
+      {
+        $sort: { _id: -1 } 
+      },
+      {
+        $limit: limitDays
+      }
+    ]);
+
+    if (!distinctDates.length) {
+      return res.json({
+        status: true,
+        data: [],
+        nextCursor: null
+      });
+    }
+
+    const dateFilters = distinctDates.map((d: any) => {
+      const start = new Date(d._id);
+      const end = new Date(d._id);
+      end.setDate(end.getDate() + 1);
+
+      return {
+        createdAt: {
+          $gte: start,
+          $lt: end
+        }
+      };
+    });
 
     const messages = await Message.find({
       roomId,
@@ -346,14 +395,12 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
           $elemMatch: { userId }
         }
       },
-      createdAt: {
-        $lt: anchorDate,
-        $gte: fromDate
-      }
+      $or: dateFilters
     }).sort({ createdAt: -1 }); // latest first
 
+    // 🔹 Format messages
     const formattedMessages = messages.map((msg: any) => {
-      const sender = userMap.get(msg.senderId);
+      const sender = userMap.get(String(msg.senderId));
 
       return {
         ...msg.toObject(),
@@ -369,7 +416,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       status: true,
-      data: formattedMessages.reverse(), // oldest → newest
+      data: formattedMessages.reverse(), 
       nextCursor
     });
 
