@@ -432,7 +432,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
           "Unknown",
         senderProfile:
           msg.senderProfile ||
-          `${PROFILE_URL}${sender?.profile_picture}` ||
+          sender?.profile_picture ||
           null
       };
     });
