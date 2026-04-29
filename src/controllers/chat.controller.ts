@@ -430,10 +430,21 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
           msg.senderName ||
           sender?.fullName ||
           "Unknown",
-        senderProfile:
-          msg.senderProfile ||
-          sender?.profile_picture ||
-          null
+        senderProfile: (() => {
+          if (msg.senderProfile) {
+            return msg.senderProfile.startsWith("http")
+              ? msg.senderProfile
+              : `${PROFILE_URL}${msg.senderProfile}`;
+          }
+
+          if (sender?.profile_picture) {
+            return sender.profile_picture.startsWith("http")
+              ? sender.profile_picture
+              : `${PROFILE_URL}${sender.profile_picture}`;
+          }
+
+          return null;
+        })()
       };
     });
 
