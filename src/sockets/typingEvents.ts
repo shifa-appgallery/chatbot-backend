@@ -1,5 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { AuthenticatedSocket } from "../types/AuthenticatedSocket";
+import { PROFILE_URL } from "../constant/url";
 
 interface TypingPayload {
   roomId: string;
@@ -10,7 +11,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     socket.to(roomId).emit("typing", {
       userId: socket.user?._id,
       senderName: `${socket.user?.first_name} ${socket.user?.last_name}`,
-      senderProfile: `${socket.user?.profile_picture}`,
+      senderProfile: `${PROFILE_URL}${socket.user?.profile_picture}`,
       typing: true
     });
   });
@@ -19,7 +20,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     socket.to(roomId).emit("typing", {
       userId: socket.user?._id,
       senderName: `${socket.user?.first_name} ${socket.user?.last_name}`,
-      senderProfile: `${socket.user?.profile_picture}`,
+      senderProfile: `${PROFILE_URL}${socket.user?.profile_picture}`,
       typing: false
     });
   });

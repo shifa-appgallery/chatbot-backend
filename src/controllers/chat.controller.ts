@@ -166,7 +166,7 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId, message, messageType, mediaUrl } = req.body;
     const senderId = String(req.user!.id);
-
+    const user = req.user;
     const room = await ChatRoom.findOne({
       _id: roomId,
       "participants.userId": senderId
@@ -191,7 +191,12 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       message,
       messageType,
       mediaUrl,
-      deliveredTo
+      deliveredTo,
+      senderName: `${user?.first_name} ${user?.last_name}`,
+      senderProfile: user?.profile_picture
+        ? `${PROFILE_URL}${user.profile_picture}`
+        : null
+
     });
 
     await ChatRoom.findByIdAndUpdate(roomId, {
@@ -326,6 +331,16 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Room not found" });
     }
 
+    const participant = room.participants.find(
+      (p: any) => String(p.userId) === userId
+    );
+
+    if (!participant) {
+      return res.status(403).json({ message: "Not a participant" });
+    }
+
+    const joinedAt = participant.joinedAt || new Date(0);
+
     const userMap = new Map();
     room.participants.forEach((p: any) => {
       userMap.set(String(p.userId), {
@@ -343,11 +358,14 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
     const distinctDates = await Message.aggregate([
       {
         $match: {
-          roomId:roomObjectId,
+          roomId: roomObjectId,
           deletedFor: {
             $not: { $elemMatch: { userId } }
           },
-          createdAt: { $lt: anchorDate }
+          createdAt: {
+            $lt: anchorDate,
+            $gte: joinedAt
+          }
         }
       },
       {
@@ -363,7 +381,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
         }
       },
       {
-        $sort: { _id: -1 } 
+        $sort: { _id: -1 }
       },
       {
         $limit: limitDays
@@ -398,6 +416,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
           $elemMatch: { userId }
         }
       },
+      createdAt: { $gte: joinedAt },
       $or: dateFilters
     }).sort({ createdAt: -1 }); // latest first
 
@@ -407,8 +426,14 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
       return {
         ...msg.toObject(),
-        senderName: sender?.fullName || "Unknown",
-        senderProfile: sender?.profile_picture || null
+        senderName:
+          msg.senderName ||
+          sender?.fullName ||
+          "Unknown",
+        senderProfile:
+          msg.senderProfile ||
+          sender?.profile_picture ||
+          null
       };
     });
 
@@ -419,7 +444,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       status: true,
-      data: formattedMessages.reverse(), 
+      data: formattedMessages.reverse(),
       nextCursor
     });
 

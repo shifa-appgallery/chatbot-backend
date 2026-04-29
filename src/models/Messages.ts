@@ -45,6 +45,14 @@ const messageSchema = new mongoose.Schema({
   isDeleted: {
     type: Boolean,
     default: false
+  },
+  senderName: {
+    type: String,
+    required: true
+  },
+  senderProfile: {
+    type: String,
+    default: null
   }
 
 }, { timestamps: true });
