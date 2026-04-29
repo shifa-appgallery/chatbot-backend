@@ -194,7 +194,9 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       deliveredTo,
       senderName: `${user?.first_name} ${user?.last_name}`,
       senderProfile: user?.profile_picture
-        ? `${PROFILE_URL}${user.profile_picture}`
+        ? user.profile_picture.startsWith("http")
+          ? user.profile_picture
+          : `${PROFILE_URL}${user.profile_picture}`
         : null
 
     });

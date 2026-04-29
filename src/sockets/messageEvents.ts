@@ -66,7 +66,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         : "Unknown";
 
       const senderProfile = senderParticipant?.profile_picture
-        ? `${PROFILE_URL}${senderParticipant.profile_picture}`
+        ? senderParticipant.profile_picture.startsWith("http")
+          ? senderParticipant.profile_picture
+          : `${PROFILE_URL}${senderParticipant.profile_picture}`
         : null;
 
       const msg = await Messages.create({
