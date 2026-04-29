@@ -8,6 +8,7 @@ import UserPreference from "../models/UserPreference";
 import { AuthenticatedSocket } from "../types/AuthenticatedSocket";
 import { sendNotification } from "../utils/sendPush";
 import mongoose from "mongoose";
+import { PROFILE_URL } from "../constant/url";
 
 interface SendMessagePayload {
   roomId: string;
@@ -51,14 +52,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     try {
       const senderId = String(socket.user?._id);
 
-      const msg = await Messages.create({
-        roomId,
-        senderId,
-        message,
-        messageType: messageType || "text",
-        mediaUrl: mediaUrl || null
-      });
-
       const room = await ChatRooms.findById(roomId);
       if (!room) return;
 
@@ -66,11 +59,27 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         (p: any) => String(p.userId) === senderId
       );
 
+      console.log("senderParticipant:", senderParticipant);
+
       const senderName = senderParticipant
         ? `${senderParticipant.first_Name} ${senderParticipant.last_name}`
         : "Unknown";
 
-      const senderProfile = senderParticipant?.profile_picture || null;
+      const senderProfile = senderParticipant?.profile_picture
+        ? `${PROFILE_URL}${senderParticipant.profile_picture}`
+        : null;
+
+      const msg = await Messages.create({
+        roomId,
+        senderId,
+        message,
+        messageType: messageType || "text",
+        mediaUrl: mediaUrl || null,
+        senderName,
+        senderProfile
+      });
+
+
 
       const receiverIds = room.participants
         .map(p => p.userId)
