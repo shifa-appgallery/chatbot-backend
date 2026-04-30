@@ -569,7 +569,7 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
             ? "Photo"
             : type === MESSAGE_TYPES.Video
               ? "Video"
-              : type
+              : lastMsg?.message || ""
 
         return {
           _id: room._id,
