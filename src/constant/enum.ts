@@ -1,9 +1,8 @@
 // Constants/enum.ts
 export const MESSAGE_TYPES = {
-  Text: "Text",
-  Image: "Image",
-  Audio: "Audio",
-  Video: "Video",
-  FEED: "FEED",
-  INVITE_VENUE: "INVITE_VENUE",
+  Text: "text",
+  Image: "image",
+  Audio: "audio",
+  Video: "video",
+  FEED: "feed"
 } as const;

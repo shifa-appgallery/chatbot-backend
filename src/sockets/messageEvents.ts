@@ -245,7 +245,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           sendNotification(
             device.fcmToken,
             senderName,
-            displayMessage
+            displayMessage,
+            roomId
           )
         )
       );

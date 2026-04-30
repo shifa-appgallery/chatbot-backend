@@ -4,7 +4,8 @@ import { getAccessToken, PROJECT_ID } from "../config/firebase";
 export const sendNotification = async (
   deviceToken: string,
   title: string,
-  body: string
+  body: string,
+  roomId?: string
 ) => {
   const accessToken = await getAccessToken();
 
@@ -13,7 +14,20 @@ export const sendNotification = async (
     {
       message: {
         token: deviceToken,
-        notification: { title, body },
+        notification: {
+          title,
+          body
+        },
+        android: {
+          notification: {
+            tag: roomId || Date.now().toString(),
+          },
+        },
+        apns: {
+          headers: {
+            "apns-collapse-id": roomId || Date.now().toString(), 
+          },
+        },
       },
     },
     {
