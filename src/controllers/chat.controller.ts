@@ -11,6 +11,7 @@ import { TeamUsers } from "../models/mysql/TeamUsers";
 import { getSequelize } from "../config/mysql";
 import { PROFILE_URL, TEAM_LOGO_URL } from "../constant/url";
 import mongoose from "mongoose";
+import { MESSAGE_TYPES } from "../constant/enum";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -200,10 +201,18 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
         : null
 
     });
+    const type = (messageType || "").toLowerCase();
+
+    const lastMessageText =
+      type === MESSAGE_TYPES.Image
+        ? "Photo"
+        : type === MESSAGE_TYPES.Video
+          ? "Video"
+          : type
 
     await ChatRoom.findByIdAndUpdate(roomId, {
       lastMessage: {
-        text: message,
+        text: lastMessageText,
         senderId,
         createdAt: new Date()
       }
@@ -553,6 +562,15 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
           .filter((p: any) => p.role === "admin")
           .map((p: any) => p.userId);
 
+        const type = (lastMsg?.messageType || "").toLowerCase();
+
+        const lastMessageText =
+          type === MESSAGE_TYPES.Image
+            ? "Photo"
+            : type === MESSAGE_TYPES.Video
+              ? "Video"
+              : type
+
         return {
           _id: room._id,
           isGroup: room.isGroup,
@@ -561,7 +579,7 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
 
           roomId: room.roomId,
 
-          lastMessage: lastMsg?.message || "",
+          lastMessage: lastMessageText,
           lastMessageDate: lastMsg?.createdAt || null,
 
           receiverName,
