@@ -504,7 +504,7 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
       "participants.userId": userId
     }).sort({ "lastMessage.createdAt": -1 });
 
-    const formattedRooms = await Promise.all(
+    const formattedRoomsRaw = await Promise.all(
       rooms.map(async (room: any) => {
 
         const lastMsg = await Message.findOne({
@@ -514,6 +514,8 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
             $not: { $elemMatch: { userId } }
           }
         }).sort({ createdAt: -1 });
+
+        if (!lastMsg) return null;
 
         const currentUserParticipant = room.participants.find(
           (p: any) => p.userId === userId
@@ -575,6 +577,8 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
         };
       })
     );
+
+    const formattedRooms = formattedRoomsRaw.filter(room => room !== null);
 
     return res.json({
       status: true,

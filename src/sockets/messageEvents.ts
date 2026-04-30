@@ -9,6 +9,7 @@ import { AuthenticatedSocket } from "../types/AuthenticatedSocket";
 import { sendNotification } from "../utils/sendPush";
 import mongoose from "mongoose";
 import { PROFILE_URL } from "../constant/url";
+import { MESSAGE_TYPES } from "../constant/enum";
 
 interface SendMessagePayload {
   roomId: string;
@@ -81,7 +82,17 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         senderProfile
       });
 
-
+      const formattedMsg = {
+        ...msg.toObject(),
+        senderName,
+        senderProfile,
+        displayMessage:
+          messageType === MESSAGE_TYPES.Image
+            ? "Photo"
+            : messageType === MESSAGE_TYPES.Video
+              ? "Video"
+              : message
+      };
 
       const receiverIds = room.participants
         .map(p => p.userId)
@@ -118,11 +129,12 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         roomId,
         {
           lastMessage: {
-            text: messageType === "text"
-              ? message
-              : messageType === "image"
-                ? "Image"
-                : messageType,
+            text:
+              messageType === MESSAGE_TYPES.Image
+                ? "Photo"
+                : messageType === MESSAGE_TYPES.Video
+                  ? "Video"
+                  : message,
             senderId,
             createdAt: new Date()
           },
@@ -142,10 +154,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // NEW: send to all presenceList with socketIds
       for (const userId of receiverIds) {
 
-        const presenceMap = new Map(
-          presenceList.map(p => [String(p.userId), p])
-        );
-
         const presence = presenceMap.get(userId);
 
         const userParticipant = updatedRoom?.participants?.find(
@@ -159,18 +167,15 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
         };
 
+
         if (presence && presence.socketIds?.length > 0) {
           presence.socketIds.forEach((socketId: string) => {
             io.to(socketId).emit("room_updated", payload);
-            io.to(socketId).emit("receive_message", {
-              ...msg.toObject(),
-              senderName,
-              senderProfile
-            });
           });
         }
-
       }
+
+      io.to(roomId.toString()).emit("receive_message", formattedMsg);
 
       socket.emit("room_updated", {
         roomId,
@@ -179,16 +184,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
       });
 
-      io.to(roomId.toString()).emit("receive_message", {
-        ...msg.toObject(),
-        senderName,
-        senderProfile
-      });
-      socket.emit("message_sent", {
-        ...msg.toObject(),
-        senderName,
-        senderProfile
-      });
+      socket.emit("message_sent", formattedMsg);
 
       const usersToNotify = [...receiverIds];
 
@@ -215,13 +211,21 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       );
 
       allowedPresence.forEach(presence => {
-        // only users in OTHER ROOM (not same room)
+
+        const userParticipant = updatedRoom?.participants.find(
+          (p: any) => String(p.userId) === String(presence.userId)
+        );
+
+        const displayMessage = formattedMsg.displayMessage
+
         if (presence.activeRoomId !== roomId) {
           presence.socketIds.forEach((socketId: string) => {
             io.to(socketId).emit("new_message_notification", {
               roomId,
-              message,
-              senderId
+              senderId,
+              senderName,
+              displayMessage,
+              unreadCount: userParticipant?.unreadCount || 0
             });
           });
         }
@@ -234,12 +238,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       });
 
       console.log("📱 devices found:", devices.length)
+      const displayMessage = formattedMsg.displayMessage
+
       await Promise.all(
         devices.map(device =>
           sendNotification(
             device.fcmToken,
-            "New Message",
-            message
+            senderName,
+            displayMessage
           )
         )
       );
