@@ -652,9 +652,9 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
     }
 
     const currentUser = room.participants.find(
-      (p: any) => p.userId === currentUserId
+      (p: any) =>
+        String(p.userId?._id || p.userId) === currentUserId
     );
-
     if (!currentUser || currentUser.role !== "admin") {
       return res.status(403).json({
         message: "Only admin can add participants"
@@ -673,12 +673,25 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
     }
 
     const existingUserIds = new Set(
-      room.participants.map((p: any) => String(p.userId))
+      room.participants.map((p: any) =>
+        String(p.userId?._id || p.userId)
+      )
     );
 
+    const alreadyExists: string[] = [];
+
     const newParticipants = users
-      .filter(user => !existingUserIds.has(String(user.id)))
-      .map(user => ({
+      .filter((user) => {
+        const userId = String(user.id);
+
+        if (existingUserIds.has(userId)) {
+          alreadyExists.push(userId);
+          return false;
+        }
+
+        return true;
+      })
+      .map((user) => ({
         userId: String(user.id),
         first_Name: user.first_name,
         last_name: user.last_name,
@@ -689,27 +702,29 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
         joinedAt: new Date()
       }));
 
-    if (newParticipants.length === 0) {
-      return res.status(400).json({
-        message: "All users already exist in group"
-      });
-    }
-
-    const updatedRoom = await ChatRoom.findByIdAndUpdate(
-      roomId,
-      {
-        $push: {
-          participants: {
-            $each: newParticipants
+    let updatedRoom = room
+    if (newParticipants.length > 0) {
+      updatedRoom = await ChatRoom.findByIdAndUpdate(
+        roomId,
+        {
+          $push: {
+            participants: {
+              $each: newParticipants
+            }
           }
-        }
-      },
-      { returnDocument: "after" }
-    );
+        },
+        { returnDocument: "after" }
+      );
+    }
 
     return res.json({
       status: true,
       addedCount: newParticipants.length,
+      alreadyExistsCount: alreadyExists.length,
+      message:
+        newParticipants.length > 0
+          ? "Participants added successfully"
+          : "All users already exist in group",
       data: updatedRoom
     });
 
