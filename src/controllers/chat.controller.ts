@@ -67,63 +67,67 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // CHECK EXISTING 1-1 ROOM
-    if (!isGroup) {
-      const existingRoom: any = await ChatRoom.findOne({
-        isGroup: false,
-        participants: {
-          $size: 2,
-          $all: uniqueParticipants.map((id: string) => ({
-            $elemMatch: { userId: id }
-          }))
+    // CHECK EXISTING ROOM
+    const existingRoom: any = await ChatRoom.findOne({
+      isGroup: !!isGroup,
+      participants: {
+        $size: uniqueParticipants.length,
+        $all: uniqueParticipants.map((id: string) => ({
+          $elemMatch: { userId: id }
+        }))
+      }
+    });
+
+    if (existingRoom) {
+      const currentUserParticipant = existingRoom.participants.find(
+        (p: any) => p.userId === currentUserId
+      );
+
+      const otherParticipants = existingRoom.participants.filter(
+        (p: any) => p.userId !== currentUserId
+      );
+
+      const otherUser = otherParticipants[0];
+
+      const groupMembers = existingRoom.participants.map((p: any) => ({
+        userId: p.userId,
+        fullName: `${p.first_Name} ${p.last_name}`,
+        profile_picture: p.profile_picture || null,
+        isOnline: false,
+        unreadCount: p.unreadCount || 0,
+        role: p.role,
+        isAdmin: p.role === "admin"
+      }));
+
+      const adminIds = existingRoom.participants
+        .filter((p: any) => p.role === "admin")
+        .map((p: any) => p.userId);
+
+      return res.status(200).json({
+        status: true,
+        data: {
+          _id: existingRoom._id,
+          isGroup: existingRoom.isGroup,
+
+          name: existingRoom.isGroup
+            ? existingRoom.name
+            : `${otherUser.first_Name} ${otherUser.last_name}`,
+
+          image: existingRoom.isGroup
+            ? existingRoom.groupImage || ""
+            : otherUser.profile_picture || "",
+
+          lastMessage: "",
+          lastMessagedate: null,
+
+          isOnline: false,
+          unreadCount: currentUserParticipant?.unreadCount || 0,
+
+          adminIds,
+
+          groupMembers
         }
       });
-
-      if (existingRoom) {
-        const currentUserParticipant = existingRoom.participants.find(
-          (p: any) => p.userId === currentUserId
-        );
-
-        const otherParticipants = existingRoom.participants.filter(
-          (p: any) => p.userId !== currentUserId
-        );
-
-        const otherUser = otherParticipants[0];
-
-        const groupMembers = existingRoom.participants.map((p: any) => ({
-          userId: p.userId,
-          fullName: `${p.first_Name} ${p.last_name}`,
-          profile_picture: p.profile_picture || null,
-          isOnline: false,
-          unreadCount: p.unreadCount || 0,
-          role: p.role,
-          isAdmin: p.role === "admin"
-        }));
-
-        const adminIds = existingRoom.participants
-          .filter((p: any) => p.role === "admin")
-          .map((p: any) => p.userId);
-
-        return res.status(200).json({
-          status: true,
-          data: {
-            _id: existingRoom._id,
-            isGroup: existingRoom.isGroup,
-
-            name: `${otherUser.first_Name} ${otherUser.last_name}`,
-            image: otherUser.profile_picture || "",
-
-            lastMessage: "",
-            lastMessagedate: null,
-
-            isOnline: false,
-            unreadCount: currentUserParticipant?.unreadCount || 0,
-
-            adminIds,
-            groupMembers
-          }
-        });
-      }
     }
 
     if (isGroup && !name) {
