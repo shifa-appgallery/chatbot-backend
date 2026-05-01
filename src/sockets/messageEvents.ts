@@ -4,7 +4,6 @@ import Messages from "../models/Messages";
 import UserPresence from "../models/UserPresence";
 import UserDevice from "../models/UserDevice";
 import UserPreference from "../models/UserPreference";
-// import { sendPushNotification } from "../utils/sendPush";
 import { AuthenticatedSocket } from "../types/AuthenticatedSocket";
 import { sendNotification } from "../utils/sendPush";
 import mongoose from "mongoose";

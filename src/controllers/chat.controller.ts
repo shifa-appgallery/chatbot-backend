@@ -32,7 +32,9 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const formattedParticipantIds = participantIds.map((id: any) => String(id));
+    const formattedParticipantIds = participantIds.map((id: any) =>
+      String(id)
+    );
 
     const users: any = await User.findAll({
       where: {
@@ -50,6 +52,7 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
     }
 
     const userMap: Record<string, any> = {};
+
     users.forEach((user: any) => {
       userMap[String(user.id)] = user;
     });
@@ -64,8 +67,9 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // CHECK EXISTING 1-1 ROOM
     if (!isGroup) {
-      const existingRoom = await ChatRoom.findOne({
+      const existingRoom: any = await ChatRoom.findOne({
         isGroup: false,
         participants: {
           $size: 2,
@@ -76,10 +80,49 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       });
 
       if (existingRoom) {
-        return res.status(201).json({
+        const currentUserParticipant = existingRoom.participants.find(
+          (p: any) => p.userId === currentUserId
+        );
+
+        const otherParticipants = existingRoom.participants.filter(
+          (p: any) => p.userId !== currentUserId
+        );
+
+        const otherUser = otherParticipants[0];
+
+        const groupMembers = existingRoom.participants.map((p: any) => ({
+          userId: p.userId,
+          fullName: `${p.first_Name} ${p.last_name}`,
+          profile_picture: p.profile_picture || null,
+          isOnline: false,
+          unreadCount: p.unreadCount || 0,
+          role: p.role,
+          isAdmin: p.role === "admin"
+        }));
+
+        const adminIds = existingRoom.participants
+          .filter((p: any) => p.role === "admin")
+          .map((p: any) => p.userId);
+
+        return res.status(200).json({
           status: true,
-          data: existingRoom
-        })
+          data: {
+            _id: existingRoom._id,
+            isGroup: existingRoom.isGroup,
+
+            name: `${otherUser.first_Name} ${otherUser.last_name}`,
+            image: otherUser.profile_picture || "",
+
+            lastMessage: "",
+            lastMessagedate: null,
+
+            isOnline: false,
+            unreadCount: currentUserParticipant?.unreadCount || 0,
+
+            adminIds,
+            groupMembers
+          }
+        });
       }
     }
 
@@ -97,13 +140,16 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       if (id === currentUserId) {
         first_Name = currentUser.first_name;
         last_name = currentUser.last_name;
+
         profile_picture = currentUser.profile_picture
           ? PROFILE_URL + currentUser.profile_picture
           : "";
       } else {
         const user = userMap[id];
+
         first_Name = user?.first_name || "";
         last_name = user?.last_name || "";
+
         profile_picture = user?.profile_picture
           ? PROFILE_URL + user.profile_picture
           : "";
@@ -119,21 +165,22 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    const room = await ChatRoom.create({
+    const room: any = await ChatRoom.create({
       name: isGroup ? name : "",
       isGroup: !!isGroup,
-      groupImage: isGroup && groupImage
-        ? groupImage
-        : "",
+      groupImage: isGroup && groupImage ? groupImage : "",
       participants,
       createdBy: currentUserId
     });
 
-    // Create UserPreference for all participants
+    // CREATE USER PREFERENCES
     await Promise.all(
       uniqueParticipants.map((userId: string) =>
         UserPreference.updateOne(
-          { userId: String(userId), roomId: room._id },
+          {
+            userId: String(userId),
+            roomId: room._id
+          },
           {
             $setOnInsert: {
               userId: String(userId),
@@ -149,13 +196,58 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       )
     );
 
+    const currentUserParticipant = room.participants.find(
+      (p: any) => p.userId === currentUserId
+    );
+
+    const otherParticipants = room.participants.filter(
+      (p: any) => p.userId !== currentUserId
+    );
+
+    const otherUser = otherParticipants[0];
+
+    const groupMembers = room.participants.map((p: any) => ({
+      userId: p.userId,
+      fullName: `${p.first_Name} ${p.last_name}`,
+      profile_picture: p.profile_picture || null,
+      isOnline: false,
+      unreadCount: p.unreadCount || 0,
+      role: p.role,
+      isAdmin: p.role === "admin"
+    }));
+
+    const adminIds = room.participants
+      .filter((p: any) => p.role === "admin")
+      .map((p: any) => p.userId);
+
     return res.status(201).json({
       status: true,
-      data: room
-    });
+      data: {
+        _id: room._id,
+        isGroup: room.isGroup,
 
+        name: room.isGroup
+          ? room.name
+          : `${otherUser.first_Name} ${otherUser.last_name}`,
+
+        image: room.isGroup
+          ? room.groupImage || ""
+          : otherUser.profile_picture || "",
+
+        lastMessage: "",
+        lastMessagedate: null,
+
+        isOnline: false,
+        unreadCount: currentUserParticipant?.unreadCount || 0,
+
+        adminIds,
+
+        groupMembers
+      }
+    });
   } catch (err) {
     console.error("createRoom error:", err);
+
     return res.status(500).json({
       message: "Internal server error"
     });
