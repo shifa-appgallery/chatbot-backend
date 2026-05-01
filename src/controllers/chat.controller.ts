@@ -674,25 +674,33 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
 
     const existingUserIds = new Set(
       room.participants.map((p: any) =>
-        String(p.userId?._id || p.userId)
+        String(p.userId?._id || p.userId).trim()
       )
     );
 
     const alreadyExists: string[] = [];
+    const processedIds = new Set<string>();
 
-    const newParticipants = users
-      .filter((user) => {
-        const userId = String(user.id);
+    const newParticipants = [];
 
-        if (existingUserIds.has(userId)) {
-          alreadyExists.push(userId);
-          return false;
-        }
 
-        return true;
-      })
-      .map((user) => ({
-        userId: String(user.id),
+
+    for (const user of users) {
+      const userId = String(user.id).trim();
+
+      if (processedIds.has(userId)) {
+        continue;
+      }
+
+      processedIds.add(userId);
+
+      if (existingUserIds.has(userId)) {
+        alreadyExists.push(userId);
+        continue;
+      }
+
+      newParticipants.push({
+        userId,
         first_Name: user.first_name,
         last_name: user.last_name,
         profile_picture: user.profile_picture
@@ -700,7 +708,8 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
           : "",
         role: "member",
         joinedAt: new Date()
-      }));
+      });
+    }
 
     let updatedRoom = room
     if (newParticipants.length > 0) {
@@ -721,6 +730,7 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
       status: true,
       addedCount: newParticipants.length,
       alreadyExistsCount: alreadyExists.length,
+      alreadyExists: alreadyExists,
       message:
         newParticipants.length > 0
           ? "Participants added successfully"
