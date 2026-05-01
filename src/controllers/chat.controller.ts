@@ -630,6 +630,25 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
       );
     }
 
+    await Promise.all(
+      newParticipants.map((p: any) =>
+        UserPreference.updateOne(
+          { userId: p.userId, roomId },
+          {
+            $setOnInsert: {
+              userId: p.userId,
+              roomId,
+              notificationLevel: "all",
+              isMuted: false,
+              isPinned: false,
+              isArchived: false
+            }
+          },
+          { upsert: true }
+        )
+      )
+    );
+
     return res.json({
       status: true,
       addedCount: newParticipants.length,

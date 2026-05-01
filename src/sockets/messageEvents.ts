@@ -240,16 +240,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       console.log("📱 devices found:", devices.length)
       const displayMessage = formattedMsg.displayMessage
 
-      const notificationTitle = room.isGroup
-        ? (room.name ?? "Group")
-        : (senderName ?? "Unknown");
-
-
       await Promise.all(
         devices.map(device =>
           sendNotification(
             device.fcmToken,
-            notificationTitle,
+            `${senderName || "Unknown"} (${room.name || "Group"})`,
             displayMessage,
             roomId
           )
