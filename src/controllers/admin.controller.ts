@@ -162,12 +162,12 @@ export const createGroupByRole = async (req: AuthRequest, res: Response) => {
 
 export const addMembersToGroup = async (req: AuthRequest, res: Response) => {
   try {
-    const { roomId, userIds = [] } = req.body;
+    const { teamId, userIds = [] } = req.body;
     const currentUserId = String(req.user!.id);
 
-    if (!roomId || !userIds.length) {
+    if (!teamId || !userIds.length) {
       return res.status(400).json({
-        message: "roomId and userIds are required"
+        message: "teamId and userIds are required"
       });
     }
 
@@ -179,10 +179,12 @@ export const addMembersToGroup = async (req: AuthRequest, res: Response) => {
       raw: true
     });
 
-    const [roles]: any = await sequelize.query(`
-      SELECT id, title FROM roles 
-      WHERE id = ${userWithRole.role_id}
-    `);
+    const [roles]: any = await sequelize.query(
+      `SELECT id, title FROM roles WHERE id = :roleId`,
+      {
+        replacements: { roleId: userWithRole.role_id }
+      }
+    );
 
     const roleTitle = roles?.[0]?.title;
 
@@ -192,9 +194,12 @@ export const addMembersToGroup = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const room: any = await ChatRooms.findById(roomId);
+    const room: any = await ChatRooms.findOne({
+      teamId: String(teamId),
+      isGroup: true
+    });
 
-    if (!room || !room.isGroup) {
+    if (!room) {
       return res.status(404).json({
         message: "Group not found"
       });
@@ -278,12 +283,12 @@ export const addMembersToGroup = async (req: AuthRequest, res: Response) => {
 
 export const removeMemberFromGroup = async (req: AuthRequest, res: Response) => {
   try {
-    const { roomId, userIdToRemove } = req.body;
+    const { teamId, userIdToRemove } = req.body;
     const currentUserId = String(req.user!.id);
 
-    if (!roomId || !userIdToRemove) {
+    if (!teamId || !userIdToRemove) {
       return res.status(400).json({
-        message: "roomId and userIdToRemove are required"
+        message: "teamId and userIdToRemove are required"
       });
     }
 
@@ -297,7 +302,9 @@ export const removeMemberFromGroup = async (req: AuthRequest, res: Response) => 
 
     const [roles]: any = await sequelize.query(
       `SELECT id, title FROM roles WHERE id = :roleId`,
-      { replacements: { roleId: userWithRole.role_id } }
+      {
+        replacements: { roleId: userWithRole.role_id }
+      }
     );
 
     const roleTitle = roles?.[0]?.title;
@@ -308,9 +315,12 @@ export const removeMemberFromGroup = async (req: AuthRequest, res: Response) => 
       });
     }
 
-    const room: any = await ChatRooms.findById(roomId);
+    const room: any = await ChatRooms.findOne({
+      teamId: String(teamId),
+      isGroup: true
+    });
 
-    if (!room || !room.isGroup) {
+    if (!room) {
       return res.status(404).json({
         message: "Group not found"
       });
