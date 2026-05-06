@@ -4,5 +4,6 @@ export const MESSAGE_TYPES = {
   Image: "image",
   Audio: "audio",
   Video: "video",
-  FEED: "feed"
+  FEED: "feed",
+  POLL:"poll"
 } as const;

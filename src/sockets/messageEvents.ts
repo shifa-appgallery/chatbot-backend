@@ -15,6 +15,17 @@ interface SendMessagePayload {
   message: string;
   messageType?: string;
   mediaUrl?: string | null;
+  poll?: {
+    question: string;
+
+    options: {
+      optionId: string;
+      text: string;
+      votes: any[];
+    }[];
+
+    allowMultipleAnswers: boolean;
+  }
 }
 
 interface MarkReadPayload {
@@ -48,7 +59,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     });
   })();
 
-  socket.on("send_message", async ({ roomId, message, messageType, mediaUrl }: SendMessagePayload) => {
+  socket.on("send_message", async ({ roomId, message, messageType, mediaUrl, poll }: SendMessagePayload) => {
     try {
       const senderId = String(socket.user?._id);
 
@@ -78,7 +89,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         messageType: messageType || "text",
         mediaUrl: mediaUrl || null,
         senderName,
-        senderProfile
+        senderProfile,
+        poll: messageType === MESSAGE_TYPES.POLL
+          ? poll
+          : null,
       });
 
       const formattedMsg = {
@@ -90,7 +104,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             ? "Photo"
             : messageType === MESSAGE_TYPES.Video
               ? "Video"
-              : message
+              : messageType === MESSAGE_TYPES.POLL
+                ? `${poll?.question || "Poll"}`
+                : message
       };
 
       const receiverIds = room.participants
@@ -133,7 +149,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 ? "Photo"
                 : messageType === MESSAGE_TYPES.Video
                   ? "Video"
-                  : message,
+                  : messageType === MESSAGE_TYPES.POLL
+                    ? `${poll?.question || "Poll"}`
+                    : message,
             senderId,
             createdAt: new Date()
           },
@@ -424,7 +442,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         "message_edited",
         formattedMessage
       );
-      
+
       console.log("formattedMessage:", formattedMessage);
 
 
@@ -544,6 +562,72 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
     } catch (err) {
       console.error("react_message error:", err);
+    }
+  }
+  );
+
+  socket.on("vote_poll", async ({ messageId, optionId }: {
+    messageId: string;
+    optionId: string;
+  }) => {
+    try {
+      const userId = String(socket.user?._id);
+
+      const messageDoc: any = await Messages.findById(messageId);
+
+      if (
+        !messageDoc ||
+        messageDoc.messageType !== "poll"
+      ) {
+        return;
+      }
+
+      const poll = messageDoc.poll;
+
+      // REMOVE OLD VOTE (single answer poll)
+      if (!poll.allowMultipleAnswers) {
+        poll.options.forEach((option: any) => {
+          option.votes = option.votes.filter(
+            (v: any) => String(v.userId) !== userId
+          );
+        });
+      }
+
+      const selectedOption = poll.options.find(
+        (o: any) => o.optionId === optionId
+      );
+
+      if (!selectedOption) return;
+
+      const alreadyVoted = selectedOption.votes.some(
+        (v: any) => String(v.userId) === userId
+      );
+
+      // TOGGLE VOTE
+      if (alreadyVoted) {
+        selectedOption.votes =
+          selectedOption.votes.filter(
+            (v: any) => String(v.userId) !== userId
+          );
+      } else {
+        selectedOption.votes.push({
+          userId,
+          votedAt: new Date()
+        });
+      }
+
+      await messageDoc.save();
+
+      io.to(messageDoc.roomId.toString()).emit(
+        "poll_updated",
+        {
+          messageId,
+          poll: messageDoc.poll
+        }
+      );
+
+    } catch (err) {
+      console.error("vote_poll error:", err);
     }
   }
   );

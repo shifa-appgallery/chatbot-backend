@@ -46,6 +46,43 @@ const messageSchema = new mongoose.Schema({
     }
   ],
 
+  poll: {
+    question: {
+      type: String,
+      default: ""
+    },
+
+    options: [
+      {
+        optionId: {
+          type: String,
+          required: true
+        },
+
+        text: {
+          type: String,
+          required: true
+        },
+
+        votes: [
+          {
+            userId: String,
+
+            votedAt: {
+              type: Date,
+              default: Date.now
+            }
+          }
+        ]
+      }
+    ],
+
+    allowMultipleAnswers: {
+      type: Boolean,
+      default: false
+    }
+  },
+
   deliveredTo: [
     {
       userId: String,

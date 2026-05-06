@@ -572,7 +572,7 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
             ? "Photo"
             : type === MESSAGE_TYPES.Video
               ? "Video"
-              : lastMsg?.message || ""
+              : type === MESSAGE_TYPES.Video ? "Poll " : lastMsg?.message || ""
 
         return {
           _id: room._id,
@@ -585,7 +585,7 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
           lastMessage: lastMessageText,
           lastMessageDate: lastMsg?.createdAt || null,
 
-          isEdited : lastMsg?.isEdited || null,
+          isEdited: lastMsg?.isEdited || null,
 
           receiverName,
           receiverUserId,
@@ -1585,6 +1585,106 @@ export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
 
   } catch (err) {
     console.error("updateGroupDetails error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
+  }
+};
+
+export const createPoll = async (req: AuthRequest, res: Response) => {
+  try {
+
+    const {
+      roomId,
+      question,
+      options,
+      allowMultipleAnswers = false
+    } = req.body;
+
+    const senderId = String(req.user?.id);
+
+    if (!roomId) {
+      return res.status(400).json({
+        message: "roomId is required"
+      });
+    }
+
+    if (!question) {
+      return res.status(400).json({
+        message: "question is required"
+      });
+    }
+
+    if (
+      !Array.isArray(options) ||
+      options.length < 2
+    ) {
+      return res.status(400).json({
+        message: "At least 2 options are required"
+      });
+    }
+
+    const room: any = await ChatRoom.findById(roomId);
+
+    if (!room) {
+      return res.status(404).json({
+        message: "Room not found"
+      });
+    }
+
+    const senderParticipant = room.participants.find(
+      (p: any) => String(p.userId) === senderId
+    );
+
+    const senderName = senderParticipant
+      ? `${senderParticipant.first_Name} ${senderParticipant.last_name}`
+      : "Unknown";
+
+    const senderProfile = senderParticipant?.profile_picture || null;
+
+    const formattedOptions = options.map(
+      (option: string, index: number) => ({
+        optionId: new mongoose.Types.ObjectId().toString(),
+        text: option,
+        votes: []
+      })
+    );
+
+    const msg = await Message.create({
+      roomId,
+      senderId,
+
+      messageType: "poll",
+
+      poll: {
+        question,
+        options: formattedOptions,
+        allowMultipleAnswers
+      },
+
+      senderName,
+      senderProfile
+    });
+
+    // UPDATE LAST MESSAGE
+    await ChatRoom.findByIdAndUpdate(roomId, {
+      lastMessage: {
+        text: "📊 Poll",
+        senderId,
+        createdAt: new Date()
+      }
+    });
+
+    return res.status(201).json({
+      status: true,
+      message: "Poll created successfully",
+      data: msg
+    });
+
+  } catch (err) {
+
+    console.error("createPoll error:", err);
+
     return res.status(500).json({
       message: "Internal server error"
     });
