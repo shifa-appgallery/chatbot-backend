@@ -11,7 +11,7 @@ router.post(
   adminController.createGroupByRole
 );
 
-router.put(
+router.post(
   "/add-member-to-group",
   authorize,
   adminController.addMembersToGroup
