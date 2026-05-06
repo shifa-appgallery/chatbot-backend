@@ -585,6 +585,8 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
           lastMessage: lastMessageText,
           lastMessageDate: lastMsg?.createdAt || null,
 
+          isEdited : lastMsg?.isEdited || null,
+
           receiverName,
           receiverUserId,
           receiverProfilePath,

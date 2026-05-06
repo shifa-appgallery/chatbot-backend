@@ -46,6 +46,10 @@ const messageSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isEdited: {
+    type: Boolean,
+    default: false
+  },
   senderName: {
     type: String,
     required: true

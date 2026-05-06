@@ -339,4 +339,118 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     }
   });
 
+  socket.on("edit_message", async ({ messageId, message, mediaUrl }: {
+    messageId: string;
+    message: string;
+    mediaUrl?: string;
+  }) => {
+    try {
+      const senderId = String(socket.user?._id);
+
+      const existingMessage: any = await Messages.findById(messageId);
+
+      if (!existingMessage) {
+        return;
+      }
+
+      if (String(existingMessage.senderId) !== senderId) {
+        return;
+      }
+
+      const updatedMessage: any = await Messages.findByIdAndUpdate(
+        messageId,
+        {
+          $set: {
+            message,
+            mediaUrl: mediaUrl || existingMessage.mediaUrl,
+            isEdited: true
+          }
+        },
+        { new: true }
+      );
+
+      if (!updatedMessage) return;
+
+      const room: any = await ChatRooms.findById(updatedMessage.roomId);
+
+      if (!room) return;
+
+      const displayMessage =
+        updatedMessage.messageType === MESSAGE_TYPES.Image
+          ? "Photo"
+          : updatedMessage.messageType === MESSAGE_TYPES.Video
+            ? "Video"
+            : updatedMessage.message;
+
+      const lastMsg = room.lastMessage;
+
+      const isLastMessage =
+        lastMsg &&
+        String(lastMsg.senderId) === String(senderId) &&
+        lastMsg.text === existingMessage.message;
+
+      if (isLastMessage) {
+        await ChatRooms.findByIdAndUpdate(room._id, {
+          lastMessage: {
+            text: displayMessage,
+            senderId,
+            createdAt: updatedMessage.createdAt
+          }
+        });
+      }
+
+      const formattedMessage = {
+        ...updatedMessage.toObject(),
+        displayMessage
+      };
+
+      io.to(room._id.toString()).emit(
+        "message_edited",
+        formattedMessage
+      );
+
+      const updatedRoom: any = await ChatRooms.findById(room._id).select(
+        "participants lastMessage"
+      );
+
+      for (const participant of room.participants) {
+        const userId = String(participant.userId);
+
+        const presence: any = await UserPresence.findOne({
+          userId
+        });
+
+        if (
+          presence &&
+          Array.isArray(presence.socketIds) &&
+          presence.socketIds.length > 0
+        ) {
+          const userParticipant = updatedRoom?.participants?.find(
+            (p: any) => String(p.userId) === userId
+          );
+
+          const payload = {
+            roomId: room._id,
+            unreadCount: userParticipant?.unreadCount || 0,
+            lastMessage:
+              updatedRoom?.lastMessage?.text || "",
+            lastMessageDate:
+              updatedRoom?.lastMessage?.createdAt || null
+          };
+
+          presence.socketIds.forEach((socketId: string) => {
+            io.to(socketId).emit(
+              "room_updated",
+              payload
+            );
+          });
+        }
+      }
+
+    } catch (err) {
+      console.error("edit_message error:", err);
+    }
+  }
+  );
+
 };
