@@ -369,7 +369,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             isEdited: true
           }
         },
-        { new: true }
+        { upsert: true, returnDocument: "after" }
       );
 
       if (!updatedMessage) return;
