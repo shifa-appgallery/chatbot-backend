@@ -347,18 +347,26 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     try {
 
       console.log("edit_message called");
+
       const senderId = String(socket.user?._id);
-      console.log("senderId",senderId)
+
+      console.log("senderId", senderId);
 
       const existingMessage: any = await Messages.findById(messageId);
 
       if (!existingMessage) {
-        return;
+        return socket.emit("message_error", {
+          message: "Message not found"
+        });
       }
 
       if (String(existingMessage.senderId) !== senderId) {
-        return;
+        return socket.emit("message_error", {
+          message: "Unauthorized"
+        });
       }
+
+      const oldMessage = existingMessage.message;
 
       const updatedMessage: any = await Messages.findByIdAndUpdate(
         messageId,
@@ -390,7 +398,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       const isLastMessage =
         lastMsg &&
         String(lastMsg.senderId) === String(senderId) &&
-        lastMsg.text === existingMessage.message;
+        lastMsg.text === oldMessage;
 
       if (isLastMessage) {
         await ChatRooms.findByIdAndUpdate(room._id, {
@@ -403,20 +411,29 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       }
 
       const formattedMessage = {
-        ...updatedMessage.toObject(),
+        messageId: updatedMessage._id,
+        message: updatedMessage.message,
+        mediaUrl: updatedMessage.mediaUrl,
+        isEdited: updatedMessage.isEdited,
+        updatedAt: updatedMessage.updatedAt,
         displayMessage
       };
 
+      // ROOM SOCKET
       io.to(room._id.toString()).emit(
         "message_edited",
         formattedMessage
       );
+
+      // ACK TO SENDER
+      socket.emit("message_edit_success", formattedMessage);
 
       const updatedRoom: any = await ChatRooms.findById(room._id).select(
         "participants lastMessage"
       );
 
       for (const participant of room.participants) {
+
         const userId = String(participant.userId);
 
         const presence: any = await UserPresence.findOne({
@@ -428,6 +445,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           Array.isArray(presence.socketIds) &&
           presence.socketIds.length > 0
         ) {
+
           const userParticipant = updatedRoom?.participants?.find(
             (p: any) => String(p.userId) === userId
           );
@@ -451,10 +469,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       }
 
     } catch (err) {
+
       console.error("edit_message error:", err);
+
+      socket.emit("message_error", {
+        message: "Something went wrong"
+      });
     }
-  }
-  );
+  });
 
   socket.on("react_message", async ({ messageId, reaction, reactionUrl }: {
     messageId: string;
