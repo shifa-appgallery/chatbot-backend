@@ -92,7 +92,10 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       const groupMembers = existingRoom.participants.map((p: any) => ({
         userId: p.userId,
         fullName: `${p.first_Name} ${p.last_name}`,
-        profile_picture: p.profile_picture || null,
+        profile_picture: p.profile_picture ? p.profile_picture.startsWith("http")
+          ? p.profile_picture
+          : `${PROFILE_URL}${p.profile_picture}`
+          : null,
         isOnline: false,
         unreadCount: p.unreadCount || 0,
         role: p.role,
