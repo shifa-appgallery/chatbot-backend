@@ -424,6 +424,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         "message_edited",
         formattedMessage
       );
+      
+      console.log("formattedMessage:", formattedMessage);
+
+
 
       // ACK TO SENDER
       socket.emit("message_edit_success", formattedMessage);
@@ -431,6 +435,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       const updatedRoom: any = await ChatRooms.findById(room._id).select(
         "participants lastMessage"
       );
+      console.log("updatedRoom:", updatedRoom);
 
       for (const participant of room.participants) {
 
