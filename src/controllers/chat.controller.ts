@@ -596,7 +596,8 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
 
           adminIds,
 
-          groupMembers: room.isGroup ? groupMembers : undefined
+          groupMembers: room.isGroup ? groupMembers : undefined,
+          reaction: lastMsg?.reactions || ""
         };
       })
     );
