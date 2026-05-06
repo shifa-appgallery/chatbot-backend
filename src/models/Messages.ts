@@ -16,11 +16,35 @@ const messageSchema = new mongoose.Schema({
 
   messageType: {
     type: String,
-    enum: ["text", "image", "video", "file"],
+    enum: ["text", "image", "video", "file", "poll"],
     default: "text"
   },
 
   mediaUrl: String,
+
+  reactions: [
+    {
+      userId: {
+        type: String,
+        required: true
+      },
+
+      reaction: {
+        type: String,
+        default: ""
+      },
+
+      reactionUrl: {
+        type: String,
+        required: true
+      },
+
+      reactedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ],
 
   deliveredTo: [
     {
