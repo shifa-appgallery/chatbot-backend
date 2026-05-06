@@ -345,7 +345,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     mediaUrl?: string;
   }) => {
     try {
+
+      console.log("edit_message called");
       const senderId = String(socket.user?._id);
+      console.log("senderId",senderId)
 
       const existingMessage: any = await Messages.findById(messageId);
 
@@ -449,6 +452,71 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
     } catch (err) {
       console.error("edit_message error:", err);
+    }
+  }
+  );
+
+  socket.on("react_message", async ({ messageId, reaction, reactionUrl }: {
+    messageId: string;
+    reaction: string;
+    reactionUrl: string;
+  }) => {
+    try {
+      const userId = String(socket.user?._id);
+
+      const messageDoc: any = await Messages.findById(messageId);
+
+      if (!messageDoc) return;
+
+      const existingReactionIndex =
+        messageDoc.reactions.findIndex(
+          (r: any) => String(r.userId) === userId
+        );
+
+      if (
+        existingReactionIndex !== -1 &&
+        messageDoc.reactions[existingReactionIndex].reaction === reaction
+      ) {
+        messageDoc.reactions.splice(existingReactionIndex, 1);
+      }
+
+      else if (existingReactionIndex !== -1) {
+        messageDoc.reactions[existingReactionIndex] = {
+          userId,
+          reaction,
+          reactionUrl,
+          reactedAt: new Date()
+        };
+      }
+
+      else {
+        messageDoc.reactions.push({
+          userId,
+          reaction,
+          reactionUrl,
+          reactedAt: new Date()
+        });
+      }
+
+      await messageDoc.save();
+
+      const formattedReactions = messageDoc.reactions.map((r: any) => ({
+        userId: r.userId,
+        reaction: r.reaction,
+        reactionUrl: r.reactionUrl,
+        reactedAt: r.reactedAt
+      }));
+
+      io.to(messageDoc.roomId.toString()).emit(
+        "message_reacted",
+        {
+          messageId,
+          reactions: formattedReactions
+        }
+      );
+
+    } catch (err) {
+      console.error("react_message error:", err);
     }
   }
   );
