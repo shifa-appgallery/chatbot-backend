@@ -436,6 +436,19 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
     const formattedMessages = messages.map((msg: any) => {
       const sender = userMap.get(String(msg.senderId));
 
+      const reactionsWithUsers = (msg.reactions || []).map((reaction: any) => {
+        const reactionUser = userMap.get(String(reaction.userId));
+
+        return {
+          ...reaction.toObject?.() || reaction,
+          userName: reactionUser?.fullName || "Unknown",
+          userProfile: reactionUser?.profile_picture
+            ? reactionUser.profile_picture.startsWith("http")
+              ? reactionUser.profile_picture
+              : `${PROFILE_URL}${reactionUser.profile_picture}`
+            : null
+        };
+      });
       return {
         ...msg.toObject(),
         senderName:
@@ -456,7 +469,8 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
           }
 
           return null;
-        })()
+        })(),
+        reactions: reactionsWithUsers
       };
     });
 
