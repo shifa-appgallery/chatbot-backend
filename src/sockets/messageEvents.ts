@@ -513,6 +513,22 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       if (!messageDoc) return;
 
+      const room: any = await ChatRooms.findById(messageDoc.roomId);
+
+      const userMap = new Map();
+
+      room?.participants?.forEach((p: any) => {
+        userMap.set(String(p.userId), {
+          userName: `${p.first_Name} ${p.last_name}`,
+          userProfile: p.profile_picture
+            ? p.profile_picture.startsWith("http")
+              ? p.profile_picture
+              : `${PROFILE_URL}${p.profile_picture}`
+            : null
+        });
+      });
+
+
       const existingReactionIndex =
         messageDoc.reactions.findIndex(
           (r: any) => String(r.userId) === userId
@@ -530,7 +546,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           userId,
           reaction,
           reactionUrl,
-          reactedAt: new Date()
+          reactedAt: new Date(),
+
         };
       }
 
@@ -545,12 +562,20 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       await messageDoc.save();
 
-      const formattedReactions = messageDoc.reactions.map((r: any) => ({
-        userId: r.userId,
-        reaction: r.reaction,
-        reactionUrl: r.reactionUrl,
-        reactedAt: r.reactedAt
-      }));
+      const formattedReactions = messageDoc.reactions.map((r: any) => {
+        const reactionUser = userMap.get(String(r.userId));
+        return {
+          userId: r.userId,
+          reaction: r.reaction,
+          reactionUrl: r.reactionUrl,
+          reactedAt: r.reactedAt,
+          userName:
+            reactionUser?.userName || "Unknown",
+
+          userProfile:
+            reactionUser?.userProfile || null
+        }
+      });
 
       io.to(messageDoc.roomId.toString()).emit(
         "message_reacted",
