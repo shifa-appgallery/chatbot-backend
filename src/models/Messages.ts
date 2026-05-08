@@ -118,7 +118,24 @@ const messageSchema = new mongoose.Schema({
   senderProfile: {
     type: String,
     default: null
-  }
+  },
+  replyMessage: {
+    messageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Messages",
+      default: null
+    },
+
+    senderId: String,
+
+    senderName: String,
+
+    message: String,
+
+    messageType: String,
+
+    mediaUrl: String
+  },
 
 }, { timestamps: true });
 

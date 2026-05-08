@@ -25,7 +25,8 @@ interface SendMessagePayload {
     }[];
 
     allowMultipleAnswers: boolean;
-  }
+  },
+  replyMessageId?: string;
 }
 
 interface MarkReadPayload {
@@ -59,7 +60,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     });
   })();
 
-  socket.on("send_message", async ({ roomId, message, messageType, mediaUrl, poll }: SendMessagePayload) => {
+  socket.on("send_message", async ({ roomId, message, messageType, mediaUrl, poll, replyMessageId }: SendMessagePayload) => {
     try {
       const senderId = String(socket.user?._id);
 
@@ -82,6 +83,26 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           : `${PROFILE_URL}${senderParticipant.profile_picture}`
         : null;
 
+
+      let replyMessageData = null;
+
+      if (replyMessageId) {
+
+        const parentMessage: any =
+          await Messages.findById(replyMessageId);
+
+        if (parentMessage) {
+
+          replyMessageData = {
+            messageId: parentMessage._id,
+            senderId: parentMessage.senderId,
+            senderName: parentMessage.senderName,
+            message: parentMessage.message,
+            messageType: parentMessage.messageType,
+            mediaUrl: parentMessage.mediaUrl
+          };
+        }
+      }
       const msg = await Messages.create({
         roomId,
         senderId,
@@ -93,6 +114,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         poll: messageType === MESSAGE_TYPES.POLL
           ? poll
           : null,
+        replyMessage: replyMessageData
       });
 
       const formattedMsg = {

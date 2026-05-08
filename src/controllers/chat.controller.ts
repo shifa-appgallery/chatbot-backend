@@ -261,11 +261,24 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const sendMessage = async (req: AuthRequest, res: Response) => {
+export const sendMessage = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
-    const { roomId, message, messageType, mediaUrl } = req.body;
+
+    const {
+      roomId,
+      message,
+      messageType,
+      mediaUrl,
+      replyMessageId
+    } = req.body;
+
     const senderId = String(req.user!.id);
+
     const user = req.user;
+
     const room = await ChatRoom.findOne({
       _id: roomId,
       "participants.userId": senderId
@@ -277,8 +290,30 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    let replyMessageData = null;
+
+    if (replyMessageId) {
+
+      const parentMessage: any =
+        await Message.findById(replyMessageId);
+
+      if (parentMessage) {
+
+        replyMessageData = {
+          messageId: parentMessage._id,
+          senderId: parentMessage.senderId,
+          senderName: parentMessage.senderName,
+          message: parentMessage.message,
+          messageType: parentMessage.messageType,
+          mediaUrl: parentMessage.mediaUrl
+        };
+      }
+    }
+
     const deliveredTo = room.participants
-      .filter((p: any) => p.userId !== senderId)
+      .filter(
+        (p: any) => p.userId !== senderId
+      )
       .map((p: any) => ({
         userId: p.userId,
         deliveredAt: new Date()
@@ -290,31 +325,46 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       message,
       messageType,
       mediaUrl,
+
       deliveredTo,
-      senderName: `${user?.first_name} ${user?.last_name}`,
+
+      senderName:
+        `${user?.first_name} ${user?.last_name}`,
+
       senderProfile: user?.profile_picture
-        ? user.profile_picture.startsWith("http")
+        ? user.profile_picture.startsWith(
+          "http"
+        )
           ? user.profile_picture
           : `${PROFILE_URL}${user.profile_picture}`
-        : null
+        : null,
 
+      // NEW FIELD
+      replyMessage: replyMessageData
     });
-    const type = (messageType || "").toLowerCase();
+
+    const type =
+      (messageType || "").toLowerCase();
 
     const lastMessageText =
       type === MESSAGE_TYPES.Image
         ? "Photo"
         : type === MESSAGE_TYPES.Video
           ? "Video"
-          : type
+          : type === MESSAGE_TYPES.POLL
+            ? "Poll"
+            : message;
 
-    await ChatRoom.findByIdAndUpdate(roomId, {
-      lastMessage: {
-        text: lastMessageText,
-        senderId,
-        createdAt: new Date()
+    await ChatRoom.findByIdAndUpdate(
+      roomId,
+      {
+        lastMessage: {
+          text: lastMessageText,
+          senderId,
+          createdAt: new Date()
+        }
       }
-    });
+    );
 
     return res.status(201).json({
       status: true,
@@ -322,7 +372,12 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (err) {
-    console.error("sendMessage error:", err);
+
+    console.error(
+      "sendMessage error:",
+      err
+    );
+
     return res.status(500).json({
       message: "Internal server error"
     });
