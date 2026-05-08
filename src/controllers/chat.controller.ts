@@ -449,6 +449,32 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
             : null
         };
       });
+
+      const pollWithUsers = msg.poll
+        ? {
+          ...msg.poll.toObject?.() || msg.poll,
+          options: (msg.poll.options || []).map((option: any) => ({
+            ...(option.toObject?.() || option),
+
+            votes: (option.votes || []).map((vote: any) => {
+              const voteUser = userMap.get(String(vote.userId));
+
+              return {
+                ...(vote.toObject?.() || vote),
+
+                userName: voteUser?.fullName || "Unknown",
+
+                userProfile: voteUser?.profile_picture
+                  ? voteUser.profile_picture.startsWith("http")
+                    ? voteUser.profile_picture
+                    : `${PROFILE_URL}${voteUser.profile_picture}`
+                  : null
+              };
+            })
+          }))
+        }
+        : null;
+
       return {
         ...msg.toObject(),
         senderName:
@@ -470,7 +496,9 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
           return null;
         })(),
-        reactions: reactionsWithUsers
+        reactions: reactionsWithUsers,
+
+        poll: pollWithUsers
       };
     });
 

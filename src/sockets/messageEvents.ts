@@ -609,7 +609,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       const poll = messageDoc.poll;
 
-      // REMOVE OLD VOTE (single answer poll)
       if (!poll.allowMultipleAnswers) {
         poll.options.forEach((option: any) => {
           option.votes = option.votes.filter(
@@ -628,7 +627,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         (v: any) => String(v.userId) === userId
       );
 
-      // TOGGLE VOTE
       if (alreadyVoted) {
         selectedOption.votes =
           selectedOption.votes.filter(
@@ -643,18 +641,62 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       await messageDoc.save();
 
+      const room: any = await ChatRooms.findById(
+        messageDoc.roomId
+      );
+
+      const userMap = new Map();
+
+      room?.participants?.forEach((p: any) => {
+        userMap.set(String(p.userId), {
+          name: `${p.first_Name} ${p.last_name}`,
+          profile_picture: p.profile_picture || null
+        });
+      });
+
+      const pollWithUsers = {
+        ...messageDoc.poll.toObject(),
+
+        options: messageDoc.poll.options.map(
+          (option: any) => ({
+            ...option.toObject(),
+
+            votes: option.votes.map((vote: any) => {
+              const voteUser = userMap.get(
+                String(vote.userId)
+              );
+
+              return {
+                ...vote.toObject(),
+
+                userName:
+                  voteUser?.name || "Unknown",
+
+                userProfile:
+                  voteUser?.profile_picture
+                    ? voteUser.profile_picture.startsWith(
+                      "http"
+                    )
+                      ? voteUser.profile_picture
+                      : `${PROFILE_URL}${voteUser.profile_picture}`
+                    : null
+              };
+            })
+          })
+        )
+      };
+
       io.to(messageDoc.roomId.toString()).emit(
         "poll_updated",
         {
           messageId,
-          poll: messageDoc.poll
+          poll: pollWithUsers
         }
       );
 
     } catch (err) {
       console.error("vote_poll error:", err);
     }
-  }
-  );
+  });
 
 };
