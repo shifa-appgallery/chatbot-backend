@@ -598,7 +598,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     try {
       const userId = String(socket.user?._id);
 
-      const messageDoc: any = await Messages.findById(messageId);
+      const messageDoc: any =
+        await Messages.findById(messageId);
 
       if (
         !messageDoc ||
@@ -608,14 +609,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       }
 
       const poll = messageDoc.poll;
-
-      if (!poll.allowMultipleAnswers) {
-        poll.options.forEach((option: any) => {
-          option.votes = option.votes.filter(
-            (v: any) => String(v.userId) !== userId
-          );
-        });
-      }
 
       const selectedOption = poll.options.find(
         (o: any) => o.optionId === optionId
@@ -627,12 +620,25 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         (v: any) => String(v.userId) === userId
       );
 
+      // IF SAME OPTION CLICKED AGAIN -> DESELECT
       if (alreadyVoted) {
         selectedOption.votes =
           selectedOption.votes.filter(
             (v: any) => String(v.userId) !== userId
           );
       } else {
+
+        // SINGLE ANSWER POLL
+        if (!poll.allowMultipleAnswers) {
+          poll.options.forEach((option: any) => {
+            option.votes = option.votes.filter(
+              (v: any) =>
+                String(v.userId) !== userId
+            );
+          });
+        }
+
+        // ADD NEW VOTE
         selectedOption.votes.push({
           userId,
           votedAt: new Date()
@@ -641,16 +647,18 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       await messageDoc.save();
 
-      const room: any = await ChatRooms.findById(
-        messageDoc.roomId
-      );
+      const room: any =
+        await ChatRooms.findById(
+          messageDoc.roomId
+        );
 
       const userMap = new Map();
 
       room?.participants?.forEach((p: any) => {
         userMap.set(String(p.userId), {
           name: `${p.first_Name} ${p.last_name}`,
-          profile_picture: p.profile_picture || null
+          profile_picture:
+            p.profile_picture || null
         });
       });
 
@@ -661,27 +669,29 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           (option: any) => ({
             ...option.toObject(),
 
-            votes: option.votes.map((vote: any) => {
-              const voteUser = userMap.get(
-                String(vote.userId)
-              );
+            votes: option.votes.map(
+              (vote: any) => {
+                const voteUser = userMap.get(
+                  String(vote.userId)
+                );
 
-              return {
-                ...vote.toObject(),
+                return {
+                  ...vote.toObject(),
 
-                userName:
-                  voteUser?.name || "Unknown",
+                  userName:
+                    voteUser?.name || "Unknown",
 
-                userProfile:
-                  voteUser?.profile_picture
-                    ? voteUser.profile_picture.startsWith(
-                      "http"
-                    )
-                      ? voteUser.profile_picture
-                      : `${PROFILE_URL}${voteUser.profile_picture}`
-                    : null
-              };
-            })
+                  userProfile:
+                    voteUser?.profile_picture
+                      ? voteUser.profile_picture.startsWith(
+                        "http"
+                      )
+                        ? voteUser.profile_picture
+                        : `${PROFILE_URL}${voteUser.profile_picture}`
+                      : null
+                };
+              }
+            )
           })
         )
       };
