@@ -669,10 +669,20 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 `${senderName} mentioned you: ${message}`;
             }
 
+            const otherParticipant = room.participants.find(
+              (p: any) => String(p.userId) !== String(senderId)
+            );
+
+            const chatTitle = room.isGroup
+              ? room.name || "Group"
+              : otherParticipant
+                ? `${otherParticipant.first_Name} ${otherParticipant.last_name}`
+                : "Chat";
+
             return sendNotification(
               device.fcmToken,
 
-              `${senderName || "Unknown"} (${room.name || "Group"})`,
+              `${senderName || "Unknown"} (${chatTitle})`,
 
               displayMessage,
 
