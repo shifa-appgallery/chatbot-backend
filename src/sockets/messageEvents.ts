@@ -62,9 +62,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
   socket.on("send_message", async ({ roomId, message, messageType, mediaUrl, poll, replyMessageId }: SendMessagePayload) => {
     try {
+
       const senderId = String(socket.user?._id);
 
       const room = await ChatRooms.findById(roomId);
+
       if (!room) return;
 
       // SAME LOGIC AS API
@@ -90,18 +92,32 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         (p: any) => String(p.userId) === senderId
       );
 
-      console.log("senderParticipant:", senderParticipant);
+      if (!senderParticipant) {
+
+        socket.emit("error_message", {
+          message: "You are not part of this room"
+        });
+
+        return;
+      }
+
+      console.log(
+        "senderParticipant:",
+        senderParticipant
+      );
 
       const senderName = senderParticipant
         ? `${senderParticipant.first_Name} ${senderParticipant.last_name}`
         : "Unknown";
 
-      const senderProfile = senderParticipant?.profile_picture
-        ? senderParticipant.profile_picture.startsWith("http")
-          ? senderParticipant.profile_picture
-          : `${PROFILE_URL}${senderParticipant.profile_picture}`
-        : null;
-
+      const senderProfile =
+        senderParticipant?.profile_picture
+          ? senderParticipant.profile_picture.startsWith(
+            "http"
+          )
+            ? senderParticipant.profile_picture
+            : `${PROFILE_URL}${senderParticipant.profile_picture}`
+          : null;
 
       let replyMessageData = null;
 
@@ -110,7 +126,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         const parentMessage: any =
           await Messages.findById(replyMessageId);
 
-        if (parentMessage) {
+        // SECURITY CHECK
+        if (
+          parentMessage &&
+          String(parentMessage.roomId) === String(roomId)
+        ) {
 
           replyMessageData = {
             messageId: parentMessage._id,
@@ -122,6 +142,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           };
         }
       }
+
       const msg = await Messages.create({
         roomId,
         senderId,
@@ -130,9 +151,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         mediaUrl: mediaUrl || null,
         senderName,
         senderProfile,
-        poll: messageType === MESSAGE_TYPES.POLL
-          ? poll
-          : null,
+        poll:
+          messageType === MESSAGE_TYPES.POLL
+            ? poll
+            : null,
         replyMessage: replyMessageData
       });
 
@@ -140,6 +162,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         ...msg.toObject(),
         senderName,
         senderProfile,
+
         displayMessage:
           messageType === MESSAGE_TYPES.Image
             ? "Photo"
@@ -151,27 +174,42 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       };
 
       const receiverIds = room.participants
-        .map(p => p.userId)
+        .map((p: any) => String(p.userId))
         .filter(id => id !== senderId);
 
-      const presenceList = await UserPresence.find({
-        userId: { $in: receiverIds }
-      });
+      const presenceList =
+        await UserPresence.find({
+          userId: { $in: receiverIds }
+        });
 
       const usersInOtherRoom: string[] = [];
       const offlineUsers: string[] = [];
 
       const presenceMap = new Map(
-        presenceList.map(p => [String(p.userId), p])
+        presenceList.map(p => [
+          String(p.userId),
+          p
+        ])
       );
 
-      // UPDATED LOOP (no fetchSockets)
+      // UPDATED LOOP
       for (const userId of receiverIds) {
-        const presence = presenceMap.get(userId);
 
-        if (!presence || !presence.isOnline) {
+        const presence =
+          presenceMap.get(userId);
+
+        if (
+          !presence ||
+          !presence.isOnline
+        ) {
+
           offlineUsers.push(userId);
-        } else if (presence.activeRoomId !== roomId) {
+
+        } else if (
+          String(presence.activeRoomId) !==
+          String(roomId)
+        ) {
+
           usersInOtherRoom.push(userId);
         }
       }
@@ -193,101 +231,214 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                   : messageType === MESSAGE_TYPES.POLL
                     ? `${poll?.question || "Poll"}`
                     : message,
+
             senderId,
             createdAt: new Date()
           },
+
           $inc: {
             "participants.$[elem].unreadCount": 1
           }
         },
         {
           arrayFilters: [
-            { "elem.userId": { $in: usersToIncrementUnread } }
+            {
+              "elem.userId": {
+                $in: usersToIncrementUnread
+              }
+            }
           ]
         }
       );
 
-      const updatedRoom = await ChatRooms.findById(roomId).select("participants lastMessage");
+      const updatedRoom =
+        await ChatRooms.findById(roomId)
+          .select("participants lastMessage");
 
-      // NEW: send to all presenceList with socketIds
+      // ROOM UPDATED
       for (const userId of receiverIds) {
 
-        const presence = presenceMap.get(userId);
+        const presence =
+          presenceMap.get(userId);
 
-        const userParticipant = updatedRoom?.participants?.find(
-          (p: any) => String(p.userId) === String(userId)
-        );
+        const userParticipant =
+          updatedRoom?.participants?.find(
+            (p: any) =>
+              String(p.userId) ===
+              String(userId)
+          );
 
         const payload = {
           roomId,
-          unreadCount: userParticipant?.unreadCount || 0,
-          lastMessage: updatedRoom?.lastMessage?.text || "",
-          lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
+
+          unreadCount:
+            userParticipant?.unreadCount || 0,
+
+          lastMessage:
+            updatedRoom?.lastMessage?.text || "",
+
+          lastMessageDate:
+            updatedRoom?.lastMessage?.createdAt ||
+            null
         };
 
+        if (
+          presence &&
+          presence.socketIds?.length > 0
+        ) {
 
-        if (presence && presence.socketIds?.length > 0) {
-          presence.socketIds.forEach((socketId: string) => {
-            io.to(socketId).emit("room_updated", payload);
-          });
+          presence.socketIds.forEach(
+            (socketId: string) => {
+
+              io.to(socketId).emit(
+                "room_updated",
+                payload
+              );
+            }
+          );
         }
       }
 
-      io.to(roomId.toString()).emit("receive_message", formattedMsg);
+      io.to(roomId.toString()).emit(
+        "receive_message",
+        formattedMsg
+      );
 
       socket.emit("room_updated", {
         roomId,
         unreadCount: 0,
-        lastMessage: updatedRoom?.lastMessage?.text || "",
-        lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
+
+        lastMessage:
+          updatedRoom?.lastMessage?.text || "",
+
+        lastMessageDate:
+          updatedRoom?.lastMessage?.createdAt ||
+          null
       });
 
-      socket.emit("message_sent", formattedMsg);
+      socket.emit(
+        "message_sent",
+        formattedMsg
+      );
+
+      // =========================
+      // NOTIFICATIONS
+      // =========================
 
       const usersToNotify = [...receiverIds];
 
-      const prefs = await UserPreference.find({
-        userId: { $in: usersToNotify.map(id => String(id)) },
-        roomId: new mongoose.Types.ObjectId(roomId)
-      });
+      const prefs =
+        await UserPreference.find({
+          userId: {
+            $in: usersToNotify.map(id =>
+              String(id)
+            )
+          },
 
-      console.log("📋 prefs found:", prefs.length);
+          roomId:
+            new mongoose.Types.ObjectId(
+              roomId
+            )
+        });
+
+      console.log(
+        "📋 prefs found:",
+        prefs.length
+      );
 
       const now = new Date();
 
       const allowedUsers = prefs
-        .filter(p =>
-          (!p.isMuted || (p.muteUntil && p.muteUntil < now)) &&
-          p.notificationLevel !== "none"
+        .filter(
+          p =>
+            (
+              !p.isMuted ||
+              (
+                p.muteUntil &&
+                p.muteUntil < now
+              )
+            ) &&
+            p.notificationLevel !== "none"
         )
         .map(p => String(p.userId));
 
-      console.log("✅ allowedUsers:", allowedUsers);
-
-      const allowedPresence = presenceList.filter(p =>
-        allowedUsers.includes(String(p.userId))
+      console.log(
+        "✅ allowedUsers:",
+        allowedUsers
       );
 
-      allowedPresence.forEach(presence => {
-
-        const userParticipant = updatedRoom?.participants.find(
-          (p: any) => String(p.userId) === String(presence.userId)
+      const allowedPresence =
+        presenceList.filter(p =>
+          allowedUsers.includes(
+            String(p.userId)
+          )
         );
 
-        const displayMessage = formattedMsg.displayMessage
+      // SOCKET NOTIFICATIONS
+      allowedPresence.forEach(
+        presence => {
 
-        if (presence.activeRoomId !== roomId) {
-          presence.socketIds.forEach((socketId: string) => {
-            io.to(socketId).emit("new_message_notification", {
-              roomId,
-              senderId,
-              senderName,
-              displayMessage,
-              unreadCount: userParticipant?.unreadCount || 0
-            });
-          });
+          const userParticipant =
+            updatedRoom?.participants.find(
+              (p: any) =>
+                String(p.userId) ===
+                String(presence.userId)
+            );
+
+          // DEFAULT MESSAGE
+          let displayMessage =
+            formattedMsg.displayMessage;
+
+          if (
+            replyMessageData &&
+            String(
+              replyMessageData.senderId
+            ) ===
+            String(presence.userId)
+          ) {
+
+            displayMessage =
+              messageType ===
+                MESSAGE_TYPES.Image
+                ? `${senderName} replied with a photo`
+
+                : messageType ===
+                  MESSAGE_TYPES.Video
+                  ? `${senderName} replied with a video`
+
+                  : messageType ===
+                    MESSAGE_TYPES.POLL
+                    ? `${senderName} replied with a poll`
+
+                    : `${senderName} replied: ${message}`;
+          }
+
+          if (
+            String(presence.activeRoomId) !==
+            String(roomId)
+          ) {
+
+            presence.socketIds.forEach(
+              (socketId: string) => {
+
+                io.to(socketId).emit(
+                  "new_message_notification",
+                  {
+                    roomId,
+                    senderId,
+                    senderName,
+                    displayMessage,
+
+                    unreadCount:
+                      userParticipant?.unreadCount ||
+                      0
+                  }
+                );
+              }
+            );
+          }
         }
-      });
+      );
 
       // PUSH NOTIFICATION (for ALL allowed users — offline + background)
       const devices = await UserDevice.find({
@@ -295,24 +446,63 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         isActive: true
       });
 
-      console.log("📱 devices found:", devices.length)
-      const displayMessage = formattedMsg.displayMessage
+      console.log(
+        "📱 devices found:",
+        devices.length
+      );
 
       await Promise.all(
-        devices.map(device =>
-          sendNotification(
+
+        devices.map(async device => {
+
+          let displayMessage =
+            formattedMsg.displayMessage;
+
+          if (
+            replyMessageData &&
+            String(
+              replyMessageData.senderId
+            ) ===
+            String(device.userId)
+          ) {
+
+            displayMessage =
+              messageType ===
+                MESSAGE_TYPES.Image
+                ? `${senderName} replied with a photo`
+
+                : messageType ===
+                  MESSAGE_TYPES.Video
+                  ? `${senderName} replied with a video`
+
+                  : messageType ===
+                    MESSAGE_TYPES.POLL
+                    ? `${senderName} replied with a poll`
+
+                    : `${senderName} replied: ${message}`;
+          }
+
+          return sendNotification(
             device.fcmToken,
+
             `${senderName || "Unknown"} (${room.name || "Group"})`,
+
             displayMessage,
+
             roomId
-          )
-        )
+          );
+        })
       );
 
     } catch (err) {
-      console.error("send_message error:", err);
+
+      console.error(
+        "send_message error:",
+        err
+      );
     }
-  });
+  }
+  );
 
   socket.on("mark_delivered", async ({ roomId }: MarkDeliveredPayload) => {
     const userId = String(socket.user?._id);
