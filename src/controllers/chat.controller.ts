@@ -645,9 +645,9 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
           }
         }).sort({ createdAt: -1 });
 
-        if (!lastMsg && !room.isGroup) {
-          return null;
-        }
+        // if (!lastMsg && !room.isGroup) {
+        //   return null;
+        // }
 
         const currentUserParticipant = room.participants.find(
           (p: any) => p.userId === userId
