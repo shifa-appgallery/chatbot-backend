@@ -645,10 +645,16 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
           }
         }).sort({ createdAt: -1 });
 
-        // if (!lastMsg && !room.isGroup) {
-        //   return null;
-        // }
+        if (!lastMsg && !room.isGroup) {
 
+          // OTHER USER WHO CREATED REQUEST
+          const requestSenderId = String(room.chatRequestSenderId || "");
+
+          // HIDE ROOM IF CURRENT USER CREATED IT
+          if (requestSenderId === userId) {
+            return null;
+          }
+        }
         const currentUserParticipant = room.participants.find(
           (p: any) => p.userId === userId
         );
