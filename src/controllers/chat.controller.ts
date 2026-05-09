@@ -1040,10 +1040,10 @@ export const deleteMessage = async (req: AuthRequest, res: Response) => {
 export const getUnreadCount = async (req: AuthRequest, res: Response) => {
   try {
     const userId = String(req.user!.id);
-    const { roomId } = req.query; // 👈 optional
+    const { roomId } = req.query;
 
     const match: any = {
-      senderId: { $ne: userId }, // ❗ don't count own messages
+      senderId: { $ne: userId },
       "readBy.userId": { $ne: userId }
     };
 
@@ -1061,21 +1061,33 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
       }
     ]);
 
+    // SINGLE ROOM COUNT
     if (roomId) {
       return res.json({
+        status: true,
         roomId,
-        unreadCount: result[0]?.unreadCount || 0
+        unreadCount: result[0]?.unreadCount || 0,
+        totalUnreadCount: result[0]?.unreadCount || 0
       });
     }
 
+    // TOTAL COUNT
+    const totalUnreadCount = result.reduce(
+      (sum, room) => sum + room.unreadCount,
+      0
+    );
+
     return res.json({
       status: true,
+      totalUnreadCount,
       data: result
     });
 
   } catch (err) {
     console.error("getUnreadCount error:", err);
+
     return res.status(500).json({
+      status: false,
       message: "Internal server error"
     });
   }
