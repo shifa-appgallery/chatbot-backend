@@ -1061,25 +1061,28 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
       }
     ]);
 
-    // SINGLE ROOM COUNT
+    // SINGLE ROOM
     if (roomId) {
       return res.json({
         status: true,
         roomId,
-        unreadCount: result[0]?.unreadCount || 0,
-        totalUnreadCount: result[0]?.unreadCount || 0
+        unreadCount: result[0]?.unreadCount || 0
       });
     }
 
-    // TOTAL COUNT
-    const totalUnreadCount = result.reduce(
+    // TOTAL UNREAD MESSAGES
+    const totalUnreadMessages = result.reduce(
       (sum, room) => sum + room.unreadCount,
       0
     );
 
+    // TOTAL CHATS HAVING UNREAD
+    const totalChatsUnread = result.length;
+
     return res.json({
       status: true,
-      totalUnreadCount,
+      totalUnreadMessages,
+      totalChatsUnread,
       data: result
     });
 
