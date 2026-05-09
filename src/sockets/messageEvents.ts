@@ -786,11 +786,23 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     }
   });
 
-  socket.on("edit_message", async ({ messageId, message, mediaUrl }: {
+  socket.on("edit_message", async ({
+    messageId,
+    message,
+    mediaUrl,
+    mentions = []
+  }: {
     messageId: string;
     message: string;
     mediaUrl?: string;
+    mentions?: {
+      userId: string;
+      userName: string;
+      startIndex: number;
+      endIndex: number;
+    }[];
   }) => {
+
     try {
 
       console.log("edit_message called");
@@ -799,134 +811,406 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       console.log("senderId", senderId);
 
-      const existingMessage: any = await Messages.findById(messageId);
+      const existingMessage: any =
+        await Messages.findById(messageId);
 
       if (!existingMessage) {
-        return socket.emit("message_error", {
-          message: "Message not found"
-        });
-      }
 
-      if (String(existingMessage.senderId) !== senderId) {
-        return socket.emit("message_error", {
-          message: "Unauthorized"
-        });
-      }
-
-      const oldMessage = existingMessage.message;
-
-      const updatedMessage: any = await Messages.findByIdAndUpdate(
-        messageId,
-        {
-          $set: {
-            message,
-            mediaUrl: mediaUrl || existingMessage.mediaUrl,
-            isEdited: true
+        return socket.emit(
+          "message_error",
+          {
+            message: "Message not found"
           }
-        },
-        { upsert: true, returnDocument: "after" }
-      );
+        );
+      }
+
+      // ONLY SENDER CAN EDIT
+      if (
+        String(existingMessage.senderId) !==
+        senderId
+      ) {
+
+        return socket.emit(
+          "message_error",
+          {
+            message: "Unauthorized"
+          }
+        );
+      }
+
+      // FIND ROOM
+      const room: any =
+        await ChatRooms.findById(
+          existingMessage.roomId
+        );
+
+      if (!room) {
+
+        return socket.emit(
+          "message_error",
+          {
+            message: "Room not found"
+          }
+        );
+      }
+
+      const oldMessage =
+        existingMessage.message;
+
+      // =========================
+      // MENTION VALIDATION
+      // =========================
+
+      const safeMentions =
+        Array.isArray(mentions)
+
+          ? mentions
+            .map((m: any) => ({
+
+              userId: m.userId,
+
+              // SUPPORT BOTH
+              userName:
+                m.userName ||
+                m.username,
+
+              startIndex:
+                m.startIndex,
+
+              endIndex:
+                m.endIndex
+            }))
+
+            .filter((m: any) => {
+
+              // VALID TYPES
+              if (
+
+                typeof m.userId !==
+                "string" ||
+
+                typeof m.userName !==
+                "string" ||
+
+                typeof m.startIndex !==
+                "number" ||
+
+                typeof m.endIndex !==
+                "number"
+
+              ) {
+
+                return false;
+              }
+
+              // VALID INDEXES
+              if (
+
+                m.startIndex < 0 ||
+
+                m.endIndex >
+                message.length ||
+
+                m.startIndex >=
+                m.endIndex
+
+              ) {
+
+                return false;
+              }
+
+              // USER EXISTS IN ROOM
+              const isParticipant =
+                room.participants.some(
+                  (p: any) =>
+                    String(p.userId) ===
+                    String(m.userId)
+                );
+
+              if (!isParticipant) {
+
+                return false;
+              }
+
+              // TEXT MATCH VALIDATION
+              const mentionText =
+                message.substring(
+                  m.startIndex,
+                  m.endIndex
+                );
+
+              if (
+                !mentionText.includes(
+                  m.userName
+                )
+              ) {
+
+                return false;
+              }
+
+              return true;
+            })
+
+          : [];
+
+      // REMOVE DUPLICATES
+      const uniqueMentions =
+        safeMentions.filter(
+          (
+            mention: any,
+            index: number,
+            self: any[]
+          ) =>
+
+            index ===
+            self.findIndex(
+              (m: any) =>
+
+                String(m.userId) ===
+                String(mention.userId) &&
+
+                m.startIndex ===
+                mention.startIndex &&
+
+                m.endIndex ===
+                mention.endIndex
+            )
+        );
+
+      // =========================
+      // UPDATE MESSAGE
+      // =========================
+
+      const updatedMessage: any =
+        await Messages.findByIdAndUpdate(
+
+          messageId,
+
+          {
+            $set: {
+
+              message,
+
+              mentions:
+                uniqueMentions,
+
+              mediaUrl:
+                mediaUrl ||
+                existingMessage.mediaUrl,
+
+              isEdited: true
+            }
+          },
+
+          {
+            new: true
+          }
+        );
 
       if (!updatedMessage) return;
 
-      const room: any = await ChatRooms.findById(updatedMessage.roomId);
-
-      if (!room) return;
+      // =========================
+      // DISPLAY MESSAGE
+      // =========================
 
       const displayMessage =
-        updatedMessage.messageType === MESSAGE_TYPES.Image
-          ? "Photo"
-          : updatedMessage.messageType === MESSAGE_TYPES.Video
-            ? "Video"
-            : updatedMessage.message;
 
-      const lastMsg = room.lastMessage;
+        updatedMessage.messageType ===
+          MESSAGE_TYPES.Image
+
+          ? "Photo"
+
+          : updatedMessage.messageType ===
+            MESSAGE_TYPES.Video
+
+            ? "Video"
+
+            : updatedMessage.messageType ===
+              MESSAGE_TYPES.POLL
+
+              ? (
+                updatedMessage.poll?.question ||
+                "Poll"
+              )
+
+              : updatedMessage.message;
+
+      // =========================
+      // UPDATE LAST MESSAGE
+      // =========================
+
+      const lastMsg =
+        room.lastMessage;
 
       const isLastMessage =
+
         lastMsg &&
-        String(lastMsg.senderId) === String(senderId) &&
-        lastMsg.text === oldMessage;
+
+        String(lastMsg.senderId) ===
+        String(senderId) &&
+
+        lastMsg.text ===
+        oldMessage;
 
       if (isLastMessage) {
-        await ChatRooms.findByIdAndUpdate(room._id, {
-          lastMessage: {
-            text: displayMessage,
-            senderId,
-            createdAt: updatedMessage.createdAt
+
+        await ChatRooms.findByIdAndUpdate(
+          room._id,
+          {
+            lastMessage: {
+              text:
+                displayMessage,
+
+              senderId,
+
+              createdAt:
+                updatedMessage.createdAt
+            }
           }
-        });
+        );
       }
 
+      // =========================
+      // FORMATTED MESSAGE
+      // =========================
+
       const formattedMessage = {
-        messageId: updatedMessage._id,
-        message: updatedMessage.message,
-        mediaUrl: updatedMessage.mediaUrl,
-        isEdited: updatedMessage.isEdited,
-        updatedAt: updatedMessage.updatedAt,
+
+        messageId:
+          updatedMessage._id,
+
+        message:
+          updatedMessage.message,
+
+        mediaUrl:
+          updatedMessage.mediaUrl,
+
+        mentions:
+          updatedMessage.mentions || [],
+
+        isEdited:
+          updatedMessage.isEdited,
+
+        updatedAt:
+          updatedMessage.updatedAt,
+
         displayMessage
       };
 
-      // ROOM SOCKET
+      // =========================
+      // ROOM SOCKET EVENT
+      // =========================
+
       io.to(room._id.toString()).emit(
         "message_edited",
         formattedMessage
       );
 
-      console.log("formattedMessage:", formattedMessage);
-
-
+      console.log(
+        "formattedMessage:",
+        formattedMessage
+      );
 
       // ACK TO SENDER
-      socket.emit("message_edit_success", formattedMessage);
-
-      const updatedRoom: any = await ChatRooms.findById(room._id).select(
-        "participants lastMessage"
+      socket.emit(
+        "message_edit_success",
+        formattedMessage
       );
-      console.log("updatedRoom:", updatedRoom);
 
-      for (const participant of room.participants) {
+      // =========================
+      // UPDATED ROOM
+      // =========================
 
-        const userId = String(participant.userId);
+      const updatedRoom: any =
+        await ChatRooms.findById(
+          room._id
+        ).select(
+          "participants lastMessage"
+        );
 
-        const presence: any = await UserPresence.findOne({
-          userId
-        });
+      console.log(
+        "updatedRoom:",
+        updatedRoom
+      );
+
+      // =========================
+      // ROOM UPDATE EVENTS
+      // =========================
+
+      for (
+        const participant
+        of room.participants
+      ) {
+
+        const userId =
+          String(participant.userId);
+
+        const presence: any =
+          await UserPresence.findOne({
+            userId
+          });
 
         if (
+
           presence &&
-          Array.isArray(presence.socketIds) &&
+
+          Array.isArray(
+            presence.socketIds
+          ) &&
+
           presence.socketIds.length > 0
+
         ) {
 
-          const userParticipant = updatedRoom?.participants?.find(
-            (p: any) => String(p.userId) === userId
-          );
+          const userParticipant =
+            updatedRoom?.participants?.find(
+              (p: any) =>
+                String(p.userId) ===
+                userId
+            );
 
           const payload = {
-            roomId: room._id,
-            unreadCount: userParticipant?.unreadCount || 0,
+
+            roomId:
+              room._id,
+
+            unreadCount:
+              userParticipant?.unreadCount || 0,
+
             lastMessage:
               updatedRoom?.lastMessage?.text || "",
+
             lastMessageDate:
-              updatedRoom?.lastMessage?.createdAt || null
+              updatedRoom?.lastMessage?.createdAt ||
+              null
           };
 
-          presence.socketIds.forEach((socketId: string) => {
-            io.to(socketId).emit(
-              "room_updated",
-              payload
-            );
-          });
+          presence.socketIds.forEach(
+            (socketId: string) => {
+
+              io.to(socketId).emit(
+                "room_updated",
+                payload
+              );
+            }
+          );
         }
       }
 
     } catch (err) {
 
-      console.error("edit_message error:", err);
+      console.error(
+        "edit_message error:",
+        err
+      );
 
-      socket.emit("message_error", {
-        message: "Something went wrong"
-      });
+      socket.emit(
+        "message_error",
+        {
+          message:
+            "Something went wrong"
+        }
+      );
     }
   });
 
