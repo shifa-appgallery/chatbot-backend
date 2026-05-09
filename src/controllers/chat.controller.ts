@@ -647,11 +647,14 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
 
         if (!lastMsg && !room.isGroup) {
 
-          // OTHER USER WHO CREATED REQUEST
           const requestSenderId = String(room.chatRequestSenderId || "");
+          const requestStatus = room.chatRequestStatus;
 
-          // HIDE ROOM IF CURRENT USER CREATED IT
-          if (requestSenderId === userId) {
+          // HIDE FOR SENDER IF REQUEST IS STILL PENDING
+          if (
+            requestSenderId === userId &&
+            requestStatus === "pending"
+          ) {
             return null;
           }
         }
