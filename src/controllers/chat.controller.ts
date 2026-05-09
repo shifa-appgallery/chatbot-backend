@@ -717,7 +717,10 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
           adminIds,
 
           groupMembers: room.isGroup ? groupMembers : undefined,
-          reaction: lastMsg?.reactions || ""
+          reaction: lastMsg?.reactions || "",
+          chatRequestStatus: room?.chatRequestStatus,
+          chatRequestSenderId: room?.chatRequestSenderId
+
         };
       })
     );
