@@ -653,7 +653,10 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
           // HIDE FOR SENDER IF REQUEST IS STILL PENDING
           if (
             requestSenderId === userId &&
-            requestStatus === "pending"
+            (
+              requestStatus === "pending" ||
+              requestStatus === "rejected"
+            )
           ) {
             return null;
           }
