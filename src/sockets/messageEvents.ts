@@ -27,6 +27,13 @@ interface SendMessagePayload {
     allowMultipleAnswers: boolean;
   },
   replyMessageId?: string;
+
+  mentions?: {
+    userId: string;
+    userName: string;
+    startIndex: number;
+    endIndex: number;
+  }[];
 }
 
 interface MarkReadPayload {
@@ -60,7 +67,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     });
   })();
 
-  socket.on("send_message", async ({ roomId, message, messageType, mediaUrl, poll, replyMessageId }: SendMessagePayload) => {
+  socket.on("send_message", async ({ roomId, message, messageType, mediaUrl, poll, replyMessageId, mentions = [] }: SendMessagePayload) => {
     try {
 
       const senderId = String(socket.user?._id);
@@ -69,33 +76,37 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       if (!room) return;
 
-      // SAME LOGIC AS API
+
       if (
         !room.isGroup &&
         room.chatRequestStatus !== "accepted"
       ) {
 
-        // sender is request sender
         if (
           String(room.chatRequestSenderId) === senderId
         ) {
 
           socket.emit("error_message", {
-            message: "Chat request not accepted yet"
+            message:
+              "Chat request not accepted yet"
           });
 
           return;
         }
       }
 
-      const senderParticipant = room.participants.find(
-        (p: any) => String(p.userId) === senderId
-      );
+
+      const senderParticipant =
+        room.participants.find(
+          (p: any) =>
+            String(p.userId) === senderId
+        );
 
       if (!senderParticipant) {
 
         socket.emit("error_message", {
-          message: "You are not part of this room"
+          message:
+            "You are not part of this room"
         });
 
         return;
@@ -106,9 +117,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         senderParticipant
       );
 
-      const senderName = senderParticipant
-        ? `${senderParticipant.first_Name} ${senderParticipant.last_name}`
-        : "Unknown";
+      const senderName =
+        `${senderParticipant.first_Name} ${senderParticipant.last_name}`;
 
       const senderProfile =
         senderParticipant?.profile_picture
@@ -118,6 +128,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             ? senderParticipant.profile_picture
             : `${PROFILE_URL}${senderParticipant.profile_picture}`
           : null;
+
+      // =========================
+      // REPLY MESSAGE VALIDATION
+      // =========================
 
       let replyMessageData = null;
 
@@ -129,7 +143,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         // SECURITY CHECK
         if (
           parentMessage &&
-          String(parentMessage.roomId) === String(roomId)
+          String(parentMessage.roomId) ===
+          String(roomId)
         ) {
 
           replyMessageData = {
@@ -143,20 +158,115 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         }
       }
 
+      // =========================
+      // MENTION VALIDATION
+      // =========================
+
+      const safeMentions =
+        Array.isArray(mentions)
+          ? mentions.filter((m: any) => {
+
+            // VALID TYPES
+            if (
+              typeof m.userId !== "string" ||
+              typeof m.userName !== "string" ||
+              typeof m.startIndex !== "number" ||
+              typeof m.endIndex !== "number"
+            ) {
+              return false;
+            }
+
+            // VALID INDEXES
+            if (
+              m.startIndex < 0 ||
+              m.endIndex > message.length ||
+              m.startIndex >= m.endIndex
+            ) {
+              return false;
+            }
+
+            // VALID USER EXISTS IN ROOM
+            const isParticipant =
+              room.participants.some(
+                (p: any) =>
+                  String(p.userId) ===
+                  String(m.userId)
+              );
+
+            if (!isParticipant) {
+              return false;
+            }
+
+            // VALID TEXT MATCH
+            const mentionText =
+              message.substring(
+                m.startIndex,
+                m.endIndex
+              );
+
+            if (
+              !mentionText.includes(
+                m.userName
+              )
+            ) {
+              return false;
+            }
+
+            return true;
+          })
+          : [];
+
+      // REMOVE DUPLICATES
+      const uniqueMentions =
+        safeMentions.filter(
+          (
+            mention: any,
+            index: number,
+            self: any[]
+          ) =>
+            index ===
+            self.findIndex(
+              (m: any) =>
+                String(m.userId) ===
+                String(mention.userId) &&
+                m.startIndex ===
+                mention.startIndex &&
+                m.endIndex ===
+                mention.endIndex
+            )
+        );
+
+      // =========================
+      // CREATE MESSAGE
+      // =========================
+
       const msg = await Messages.create({
         roomId,
         senderId,
         message,
-        messageType: messageType || "text",
-        mediaUrl: mediaUrl || null,
+        messageType:
+          messageType || "text",
+        mediaUrl:
+          mediaUrl || null,
         senderName,
         senderProfile,
+
         poll:
-          messageType === MESSAGE_TYPES.POLL
+          messageType ===
+            MESSAGE_TYPES.POLL
             ? poll
             : null,
-        replyMessage: replyMessageData
+
+        replyMessage:
+          replyMessageData,
+
+        mentions:
+          uniqueMentions
       });
+
+      // =========================
+      // FORMATTED MESSAGE
+      // =========================
 
       const formattedMsg = {
         ...msg.toObject(),
@@ -164,35 +274,55 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         senderProfile,
 
         displayMessage:
-          messageType === MESSAGE_TYPES.Image
+          messageType ===
+            MESSAGE_TYPES.Image
             ? "Photo"
-            : messageType === MESSAGE_TYPES.Video
+
+            : messageType ===
+              MESSAGE_TYPES.Video
               ? "Video"
-              : messageType === MESSAGE_TYPES.POLL
+
+              : messageType ===
+                MESSAGE_TYPES.POLL
                 ? `${poll?.question || "Poll"}`
+
                 : message
       };
 
-      const receiverIds = room.participants
-        .map((p: any) => String(p.userId))
-        .filter(id => id !== senderId);
+      // =========================
+      // RECEIVERS
+      // =========================
+
+      const receiverIds =
+        room.participants
+          .map((p: any) =>
+            String(p.userId)
+          )
+          .filter(
+            id => id !== senderId
+          );
 
       const presenceList =
         await UserPresence.find({
-          userId: { $in: receiverIds }
+          userId: {
+            $in: receiverIds
+          }
         });
 
-      const usersInOtherRoom: string[] = [];
-      const offlineUsers: string[] = [];
+      const usersInOtherRoom:
+        string[] = [];
 
-      const presenceMap = new Map(
-        presenceList.map(p => [
-          String(p.userId),
-          p
-        ])
-      );
+      const offlineUsers:
+        string[] = [];
 
-      // UPDATED LOOP
+      const presenceMap =
+        new Map(
+          presenceList.map(p => [
+            String(p.userId),
+            p
+          ])
+        );
+
       for (const userId of receiverIds) {
 
         const presence =
@@ -206,34 +336,47 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           offlineUsers.push(userId);
 
         } else if (
-          String(presence.activeRoomId) !==
-          String(roomId)
+          String(
+            presence.activeRoomId
+          ) !== String(roomId)
         ) {
 
           usersInOtherRoom.push(userId);
         }
       }
 
-      const usersToIncrementUnread = [
-        ...usersInOtherRoom,
-        ...offlineUsers
-      ];
+      const usersToIncrementUnread =
+        [
+          ...usersInOtherRoom,
+          ...offlineUsers
+        ];
+
+      // =========================
+      // UPDATE ROOM
+      // =========================
 
       await ChatRooms.findByIdAndUpdate(
         roomId,
         {
           lastMessage: {
             text:
-              messageType === MESSAGE_TYPES.Image
+              messageType ===
+                MESSAGE_TYPES.Image
                 ? "Photo"
-                : messageType === MESSAGE_TYPES.Video
+
+                : messageType ===
+                  MESSAGE_TYPES.Video
                   ? "Video"
-                  : messageType === MESSAGE_TYPES.POLL
+
+                  : messageType ===
+                    MESSAGE_TYPES.POLL
                     ? `${poll?.question || "Poll"}`
+
                     : message,
 
             senderId,
-            createdAt: new Date()
+            createdAt:
+              new Date()
           },
 
           $inc: {
@@ -244,7 +387,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           arrayFilters: [
             {
               "elem.userId": {
-                $in: usersToIncrementUnread
+                $in:
+                  usersToIncrementUnread
               }
             }
           ]
@@ -253,9 +397,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       const updatedRoom =
         await ChatRooms.findById(roomId)
-          .select("participants lastMessage");
+          .select(
+            "participants lastMessage"
+          );
 
-      // ROOM UPDATED
+      // =========================
+      // ROOM UPDATE EVENT
+      // =========================
+
       for (const userId of receiverIds) {
 
         const presence =
@@ -299,22 +448,29 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         }
       }
 
+      // =========================
+      // SEND MESSAGE
+      // =========================
+
       io.to(roomId.toString()).emit(
         "receive_message",
         formattedMsg
       );
 
-      socket.emit("room_updated", {
-        roomId,
-        unreadCount: 0,
+      socket.emit(
+        "room_updated",
+        {
+          roomId,
+          unreadCount: 0,
 
-        lastMessage:
-          updatedRoom?.lastMessage?.text || "",
+          lastMessage:
+            updatedRoom?.lastMessage?.text || "",
 
-        lastMessageDate:
-          updatedRoom?.lastMessage?.createdAt ||
-          null
-      });
+          lastMessageDate:
+            updatedRoom?.lastMessage?.createdAt ||
+            null
+        }
+      );
 
       socket.emit(
         "message_sent",
@@ -325,14 +481,16 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // NOTIFICATIONS
       // =========================
 
-      const usersToNotify = [...receiverIds];
+      const usersToNotify =
+        [...receiverIds];
 
       const prefs =
         await UserPreference.find({
           userId: {
-            $in: usersToNotify.map(id =>
-              String(id)
-            )
+            $in:
+              usersToNotify.map(id =>
+                String(id)
+              )
           },
 
           roomId:
@@ -341,31 +499,24 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             )
         });
 
-      console.log(
-        "📋 prefs found:",
-        prefs.length
-      );
-
       const now = new Date();
 
-      const allowedUsers = prefs
-        .filter(
-          p =>
-            (
-              !p.isMuted ||
+      const allowedUsers =
+        prefs
+          .filter(
+            p =>
               (
-                p.muteUntil &&
-                p.muteUntil < now
-              )
-            ) &&
-            p.notificationLevel !== "none"
-        )
-        .map(p => String(p.userId));
-
-      console.log(
-        "✅ allowedUsers:",
-        allowedUsers
-      );
+                !p.isMuted ||
+                (
+                  p.muteUntil &&
+                  p.muteUntil < now
+                )
+              ) &&
+              p.notificationLevel !== "none"
+          )
+          .map(p =>
+            String(p.userId)
+          );
 
       const allowedPresence =
         presenceList.filter(p =>
@@ -385,16 +536,18 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 String(presence.userId)
             );
 
-          // DEFAULT MESSAGE
           let displayMessage =
             formattedMsg.displayMessage;
 
+          // REPLY NOTIFICATION
           if (
             replyMessageData &&
             String(
               replyMessageData.senderId
             ) ===
-            String(presence.userId)
+            String(
+              presence.userId
+            )
           ) {
 
             displayMessage =
@@ -413,9 +566,26 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                     : `${senderName} replied: ${message}`;
           }
 
+          // MENTION NOTIFICATION
+          const isMentioned =
+            uniqueMentions.some(
+              (m: any) =>
+                String(m.userId) ===
+                String(
+                  presence.userId
+                )
+            );
+
+          if (isMentioned) {
+
+            displayMessage =
+              `${senderName} mentioned you: ${message}`;
+          }
+
           if (
-            String(presence.activeRoomId) !==
-            String(roomId)
+            String(
+              presence.activeRoomId
+            ) !== String(roomId)
           ) {
 
             presence.socketIds.forEach(
@@ -440,58 +610,76 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         }
       );
 
-      // PUSH NOTIFICATION (for ALL allowed users — offline + background)
-      const devices = await UserDevice.find({
-        userId: { $in: allowedUsers },
-        isActive: true
-      });
+      // =========================
+      // PUSH NOTIFICATIONS
+      // =========================
 
-      console.log(
-        "📱 devices found:",
-        devices.length
-      );
+      const devices =
+        await UserDevice.find({
+          userId: {
+            $in: allowedUsers
+          },
+          isActive: true
+        });
 
       await Promise.all(
 
-        devices.map(async device => {
+        devices.map(
+          async device => {
 
-          let displayMessage =
-            formattedMsg.displayMessage;
+            let displayMessage =
+              formattedMsg.displayMessage;
 
-          if (
-            replyMessageData &&
-            String(
-              replyMessageData.senderId
-            ) ===
-            String(device.userId)
-          ) {
+            // REPLY PUSH
+            if (
+              replyMessageData &&
+              String(
+                replyMessageData.senderId
+              ) ===
+              String(device.userId)
+            ) {
 
-            displayMessage =
-              messageType ===
-                MESSAGE_TYPES.Image
-                ? `${senderName} replied with a photo`
-
-                : messageType ===
-                  MESSAGE_TYPES.Video
-                  ? `${senderName} replied with a video`
+              displayMessage =
+                messageType ===
+                  MESSAGE_TYPES.Image
+                  ? `${senderName} replied with a photo`
 
                   : messageType ===
-                    MESSAGE_TYPES.POLL
-                    ? `${senderName} replied with a poll`
+                    MESSAGE_TYPES.Video
+                    ? `${senderName} replied with a video`
 
-                    : `${senderName} replied: ${message}`;
+                    : messageType ===
+                      MESSAGE_TYPES.POLL
+                      ? `${senderName} replied with a poll`
+
+                      : `${senderName} replied: ${message}`;
+            }
+
+            // MENTION PUSH
+            const isMentioned =
+              uniqueMentions.some(
+                (m: any) =>
+                  String(m.userId) ===
+                  String(device.userId)
+              );
+
+            if (isMentioned) {
+
+              displayMessage =
+                `${senderName} mentioned you: ${message}`;
+            }
+
+            return sendNotification(
+              device.fcmToken,
+
+              `${senderName || "Unknown"} (${room.name || "Group"})`,
+
+              displayMessage,
+
+              roomId
+            );
           }
-
-          return sendNotification(
-            device.fcmToken,
-
-            `${senderName || "Unknown"} (${room.name || "Group"})`,
-
-            displayMessage,
-
-            roomId
-          );
-        })
+        )
       );
 
     } catch (err) {

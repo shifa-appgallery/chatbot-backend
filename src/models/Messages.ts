@@ -46,6 +46,30 @@ const messageSchema = new mongoose.Schema({
     }
   ],
 
+  mentions: [
+    {
+      userId: {
+        type: String,
+        required: true
+      },
+
+      userName: {
+        type: String,
+        required: true
+      },
+
+      startIndex: {
+        type: Number,
+        required: true
+      },
+
+      endIndex: {
+        type: Number,
+        required: true
+      }
+    }
+  ],
+
   poll: {
     question: {
       type: String,
