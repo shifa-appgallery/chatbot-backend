@@ -1042,24 +1042,49 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
     const userId = String(req.user!.id);
     const { roomId } = req.query;
 
-    // FIND USER ROOMS
+    // FIND ONLY USER PARTICIPATED ROOMS
     const roomMatch: any = {
-      participants: userId
+      "participants.userId": userId
     };
 
-    // SINGLE ROOM CHECK
+    // OPTIONAL SINGLE ROOM VALIDATION
     if (roomId) {
       roomMatch._id = roomId;
     }
 
-    const rooms = await ChatRoom.find(roomMatch).select("_id");
+    const rooms = await ChatRoom.find(roomMatch)
+      .select("_id")
+      .lean();
 
-    const roomIds = rooms.map((r: any) => r._id);
+    // NO ROOMS FOUND
+    if (!rooms.length) {
+      return res.json({
+        status: true,
+        totalUnreadMessages: 0,
+        totalChatsUnread: 0,
+        data: []
+      });
+    }
 
+    const roomIds = rooms.map((room: any) => room._id);
+
+    // UNREAD MESSAGE FILTER
     const match: any = {
       roomId: { $in: roomIds },
+
+      // EXCLUDE OWN MESSAGES
       senderId: { $ne: userId },
-      "readBy.userId": { $ne: userId },
+
+      // NOT READ BY CURRENT USER
+      readBy: {
+        $not: {
+          $elemMatch: {
+            userId: userId
+          }
+        }
+      },
+
+      // EXCLUDE DELETED
       isDeleted: false
     };
 
@@ -1070,12 +1095,14 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
       {
         $group: {
           _id: "$roomId",
-          unreadCount: { $sum: 1 }
+          unreadCount: {
+            $sum: 1
+          }
         }
       }
     ]);
 
-    // SINGLE ROOM
+    // SINGLE ROOM RESPONSE
     if (roomId) {
       return res.json({
         status: true,
@@ -1086,11 +1113,11 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
 
     // TOTAL UNREAD MESSAGES
     const totalUnreadMessages = result.reduce(
-      (sum, room) => sum + room.unreadCount,
+      (sum, room: any) => sum + room.unreadCount,
       0
     );
 
-    // TOTAL CHATS WITH UNREAD
+    // TOTAL CHATS HAVING UNREAD
     const totalChatsUnread = result.length;
 
     return res.json({
