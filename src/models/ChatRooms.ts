@@ -1,6 +1,17 @@
 import mongoose from "mongoose";
 
 const chatRoomsSchema = new mongoose.Schema({
+
+  chatRequestStatus: {
+    type: String,
+    enum: ["pending", "accepted", "rejected"],
+    default: "pending"
+  },
+
+  chatRequestSenderId: {
+    type: String,
+    default: null
+  },
   name: {
     type: String,
     default: null

@@ -177,7 +177,15 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       isGroup: !!isGroup,
       groupImage: isGroup && groupImage ? groupImage : "",
       participants,
-      createdBy: currentUserId
+      createdBy: currentUserId,
+
+      chatRequestStatus: isGroup
+        ? "accepted"
+        : "pending",
+
+      chatRequestSenderId: isGroup
+        ? null
+        : currentUserId
     });
 
     // CREATE USER PREFERENCES
@@ -288,6 +296,21 @@ export const sendMessage = async (
       return res.status(403).json({
         message: "You are not part of this room"
       });
+    }
+
+    if (
+      !room.isGroup &&
+      room.chatRequestStatus !== "accepted"
+    ) {
+
+      if (
+        room.chatRequestSenderId === senderId
+      ) {
+        return res.status(403).json({
+          message:
+            "Chat request not accepted yet"
+        });
+      }
     }
 
     let replyMessageData = null;

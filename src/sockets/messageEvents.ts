@@ -67,6 +67,25 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       const room = await ChatRooms.findById(roomId);
       if (!room) return;
 
+      // SAME LOGIC AS API
+      if (
+        !room.isGroup &&
+        room.chatRequestStatus !== "accepted"
+      ) {
+
+        // sender is request sender
+        if (
+          String(room.chatRequestSenderId) === senderId
+        ) {
+
+          socket.emit("error_message", {
+            message: "Chat request not accepted yet"
+          });
+
+          return;
+        }
+      }
+
       const senderParticipant = room.participants.find(
         (p: any) => String(p.userId) === senderId
       );
@@ -730,5 +749,83 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       console.error("vote_poll error:", err);
     }
   });
+
+  socket.on("accept_chat_request", async ({ roomId }) => {
+    try {
+
+      const userId = String(socket.user?._id);
+
+      const room: any =
+        await ChatRooms.findById(roomId);
+
+      if (!room) return;
+
+      // RECEIVER ONLY
+      if (
+        room.chatRequestSenderId === userId
+      ) {
+        return;
+      }
+
+      room.chatRequestStatus = "accepted";
+
+      await room.save();
+
+      io.to(roomId.toString()).emit(
+        "chat_request_accepted",
+        {
+          roomId,
+          chatRequestStatus: "accepted"
+        }
+      );
+
+    } catch (err) {
+
+      console.error(
+        "accept_chat_request error:",
+        err
+      );
+    }
+  }
+  );
+
+  socket.on("reject_chat_request", async ({ roomId }) => {
+    try {
+
+      const userId = String(socket.user?._id);
+
+      const room: any =
+        await ChatRooms.findById(roomId);
+
+      if (!room) return;
+
+      // RECEIVER ONLY
+      if (
+        room.chatRequestSenderId === userId
+      ) {
+        return;
+      }
+
+      room.chatRequestStatus = "rejected";
+
+      await room.save();
+
+      io.to(roomId.toString()).emit(
+        "chat_request_rejected",
+        {
+          roomId,
+          chatRequestStatus: "rejected"
+        }
+      );
+
+    } catch (err) {
+
+      console.error(
+        "reject_chat_request error:",
+        err
+      );
+    }
+  }
+  );
 
 };
