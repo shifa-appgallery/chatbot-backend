@@ -1042,17 +1042,31 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
     const userId = String(req.user!.id);
     const { roomId } = req.query;
 
-    const match: any = {
-      senderId: { $ne: userId },
-      "readBy.userId": { $ne: userId }
+    // FIND USER ROOMS
+    const roomMatch: any = {
+      participants: userId
     };
 
+    // SINGLE ROOM CHECK
     if (roomId) {
-      match.roomId = roomId;
+      roomMatch._id = roomId;
     }
 
+    const rooms = await ChatRoom.find(roomMatch).select("_id");
+
+    const roomIds = rooms.map((r: any) => r._id);
+
+    const match: any = {
+      roomId: { $in: roomIds },
+      senderId: { $ne: userId },
+      "readBy.userId": { $ne: userId },
+      isDeleted: false
+    };
+
     const result = await Message.aggregate([
-      { $match: match },
+      {
+        $match: match
+      },
       {
         $group: {
           _id: "$roomId",
@@ -1076,7 +1090,7 @@ export const getUnreadCount = async (req: AuthRequest, res: Response) => {
       0
     );
 
-    // TOTAL CHATS HAVING UNREAD
+    // TOTAL CHATS WITH UNREAD
     const totalChatsUnread = result.length;
 
     return res.json({
