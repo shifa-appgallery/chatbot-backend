@@ -161,6 +161,11 @@ const messageSchema = new mongoose.Schema({
     mediaUrl: String
   },
 
+  isForwarded: {
+    type: Boolean,
+    default: false
+  },
+
 }, { timestamps: true });
 
 messageSchema.index({ roomId: 1, createdAt: -1 });

@@ -1881,3 +1881,163 @@ export const createPoll = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+export const createTeamSupportChat = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const { teamId } = req.body;
+
+    const currentUser = req.user!;
+
+    if (!teamId) {
+      return res.status(400).json({
+        status: false,
+        message: "teamId is required"
+      });
+    }
+
+    const sequelize = getSequelize();
+
+    // GET TEAM
+    const [teams]: any = await sequelize.query(
+      `SELECT id, name, logo FROM teams WHERE id = :teamId`,
+      {
+        replacements: { teamId }
+      }
+    );
+
+    const team = teams?.[0];
+
+    if (!team) {
+      return res.status(404).json({
+        status: false,
+        message: "Team not found"
+      });
+    }
+
+    // FIND TEAM MANAGER ROLE
+    const [roles]: any = await sequelize.query(`
+      SELECT id
+      FROM roles
+      WHERE title = 'Team Manager'
+      LIMIT 1
+    `);
+
+    const teamManagerRoleId = roles?.[0]?.id;
+
+    if (!teamManagerRoleId) {
+      return res.status(404).json({
+        status: false,
+        message: "Team Manager role not found"
+      });
+    }
+
+    // FIND TEAM MANAGER IN TEAM
+    const teamManager: any = await TeamUsers.findOne({
+      where: {
+        team_id: teamId,
+        isDelete: 0,
+        status: 1
+      },
+      include: [
+        {
+          model: User,
+          as: "user",
+          where: {
+            role_id: teamManagerRoleId
+          },
+          attributes: [
+            "id",
+            "first_name",
+            "last_name",
+            "profile_picture"
+          ]
+        }
+      ]
+    });
+
+    if (!teamManager) {
+      return res.status(404).json({
+        status: false,
+        message: "Team Manager not found"
+      });
+    }
+
+    const managerUser: any = teamManager.user;
+
+    // CHECK EXISTING CHAT
+    const existingRoom = await ChatRoom.findOne({
+      isGroup: false,
+      teamId: String(teamId),
+      participants: {
+        $all: [
+          {
+            $elemMatch: {
+              userId: String(currentUser.id)
+            }
+          },
+          {
+            $elemMatch: {
+              userId: String(managerUser.id)
+            }
+          }
+        ]
+      }
+    });
+
+    if (existingRoom) {
+      return res.status(200).json({
+        status: true,
+        message: "Chat already exists",
+        data: existingRoom
+      });
+    }
+
+    // CREATE CHAT
+    const room = await ChatRoom.create({
+      name: team.name,
+      isGroup: false,
+      teamId: String(teamId),
+      groupImage: team.logo ? TEAM_LOGO_URL + team.logo : "",
+
+      participants: [
+        {
+          userId: String(currentUser.id),
+          first_Name: currentUser.first_name || "",
+          last_name: currentUser.last_name || "",
+          profile_picture: currentUser.profile_picture || "",
+          role: "member",
+          joinedAt: new Date()
+        },
+        {
+          userId: String(managerUser.id),
+          first_Name: team.name, // SHOW TEAM NAME
+          last_name: "",
+          profile_picture: team.logo
+            ? TEAM_LOGO_URL + team.logo
+            : "",
+          role: "member",
+          joinedAt: new Date()
+        }
+      ],
+
+      createdBy: String(currentUser.id)
+    });
+
+    return res.status(201).json({
+      status: true,
+      message: "Chat created successfully",
+      data: room
+    });
+
+  } catch (error) {
+    console.error("createTeamSupportChat error:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: "Internal server error"
+    });
+  }
+};

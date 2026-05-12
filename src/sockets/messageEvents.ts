@@ -28,6 +28,8 @@ interface SendMessagePayload {
   },
   replyMessageId?: string;
 
+  isForwarded?: boolean;
+
   mentions?: {
     userId: string;
     userName: string;
@@ -67,7 +69,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     });
   })();
 
-  socket.on("send_message", async ({ roomId, message, messageType, mediaUrl, poll, replyMessageId, mentions = [] }: SendMessagePayload) => {
+  socket.on("send_message", async ({ roomId, message, messageType, mediaUrl, poll, replyMessageId, isForwarded = false, mentions = [] }: SendMessagePayload) => {
     try {
 
       const senderId = String(socket.user?._id);
@@ -251,6 +253,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         senderName,
         senderProfile,
 
+        isForwarded,
+
         poll:
           messageType ===
             MESSAGE_TYPES.POLL
@@ -272,6 +276,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         ...msg.toObject(),
         senderName,
         senderProfile,
+
+         isForwarded:
+    msg.isForwarded || false,
 
         displayMessage:
           messageType ===
