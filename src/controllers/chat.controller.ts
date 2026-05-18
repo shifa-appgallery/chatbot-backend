@@ -1918,7 +1918,7 @@ export const createTeamSupportChat = async (
     }
 
     // FIND TEAM MANAGER ROLE
-        // 4. Fetch roles dynamically
+    // 4. Fetch roles dynamically
     const [roles]: any = await sequelize.query(`
       SELECT id, title FROM roles 
       WHERE title = 'Team Manager'
@@ -2011,6 +2011,7 @@ export const createTeamSupportChat = async (
       isGroup: false,
       teamId: String(teamId),
       groupImage: team.logo ? TEAM_LOGO_URL + team.logo : "",
+      chatRequestStatus: "accepted",
 
       participants: [
         {
@@ -2018,9 +2019,9 @@ export const createTeamSupportChat = async (
           first_Name: currentUser.first_name || "",
           last_name: currentUser.last_name || "",
           profile_picture: currentUser.profile_picture ? currentUser.profile_picture.startsWith("http")
-          ? currentUser.profile_picture
-          : `${PROFILE_URL}${currentUser.profile_picture}`
-          : null,
+            ? currentUser.profile_picture
+            : `${PROFILE_URL}${currentUser.profile_picture}`
+            : null,
           role: "member",
           joinedAt: new Date()
         },
