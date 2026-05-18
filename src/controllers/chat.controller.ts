@@ -1918,14 +1918,14 @@ export const createTeamSupportChat = async (
     }
 
     // FIND TEAM MANAGER ROLE
+        // 4. Fetch roles dynamically
     const [roles]: any = await sequelize.query(`
-      SELECT id
-      FROM roles
+      SELECT id, title FROM roles 
       WHERE title = 'Team Manager'
-      LIMIT 1
     `);
 
     const teamManagerRoleId = roles?.[0]?.id;
+
 
     if (!teamManagerRoleId) {
       return res.status(404).json({
@@ -1934,38 +1934,48 @@ export const createTeamSupportChat = async (
       });
     }
 
-    // FIND TEAM MANAGER IN TEAM
-    const teamManager: any = await TeamUsers.findOne({
+    const teamUsers: any = await TeamUsers.findAll({
       where: {
         team_id: teamId,
         isDelete: 0,
         status: 1
       },
-      include: [
-        {
-          model: User,
-          as: "user",
-          where: {
-            role_id: teamManagerRoleId
-          },
-          attributes: [
-            "id",
-            "first_name",
-            "last_name",
-            "profile_picture"
-          ]
-        }
-      ]
+      attributes: ["user_id"],
+      raw: true
     });
 
-    if (!teamManager) {
+    const userIds = teamUsers.map((u: any) => u.user_id);
+
+    if (!userIds.length) {
+      return res.status(404).json({
+        status: false,
+        message: "No users found in this team"
+      });
+    }
+
+    const managerUser: any = await User.findOne({
+      where: {
+        id: {
+          [Op.in]: userIds
+        },
+        role_id: teamManagerRoleId
+      },
+      attributes: [
+        "id",
+        "first_name",
+        "last_name",
+        "profile_picture",
+      ],
+      raw: true
+    });
+
+    if (!managerUser) {
       return res.status(404).json({
         status: false,
         message: "Team Manager not found"
       });
     }
 
-    const managerUser: any = teamManager.user;
 
     // CHECK EXISTING CHAT
     const existingRoom = await ChatRoom.findOne({
@@ -2007,7 +2017,10 @@ export const createTeamSupportChat = async (
           userId: String(currentUser.id),
           first_Name: currentUser.first_name || "",
           last_name: currentUser.last_name || "",
-          profile_picture: currentUser.profile_picture || "",
+          profile_picture: currentUser.profile_picture ? currentUser.profile_picture.startsWith("http")
+          ? currentUser.profile_picture
+          : `${PROFILE_URL}${currentUser.profile_picture}`
+          : null,
           role: "member",
           joinedAt: new Date()
         },

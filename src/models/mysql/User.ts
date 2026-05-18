@@ -12,6 +12,7 @@ interface UserAttributes {
   createdAt?: Date;
   updatedAt?: Date;
   profile_picture: string;
+  role_id: number;
 }
 
 // For creation (id optional)
@@ -25,6 +26,7 @@ export class User extends Model<UserAttributes, UserCreationAttributes>
   public first_name!: string;
   public last_name!: string
   public profile_picture!: string
+ public role_id!: number;
 
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
@@ -53,22 +55,25 @@ export const initUserModel = () => {
       first_name: {
         type: DataTypes.STRING,
         allowNull: true,
-        field: "first_name", 
+        field: "first_name",
       },
       name: {
         type: DataTypes.STRING,
         allowNull: true,
-        field: "first_name", 
+        field: "first_name",
       },
       last_name: {
         type: DataTypes.STRING,
         allowNull: true,
-        field: "last_name", 
+        field: "last_name",
       },
       profile_picture: {
         type: DataTypes.STRING,
         allowNull: true,
         field: "profile_picture",
+      },
+      role_id: {
+        type: DataTypes.INTEGER,
       },
     },
     {

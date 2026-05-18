@@ -45,7 +45,7 @@ const chatRoomsSchema = new mongoose.Schema({
       },
       last_name: {
         type: String,
-        required: true
+        required: false
       },
 
       profile_picture: {
