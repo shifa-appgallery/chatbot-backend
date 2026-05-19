@@ -2056,20 +2056,81 @@ export const createTeamSupportChat = async (
   }
 };
 
-
 export const getUserRequests = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = String(req.user?.id);
+    const loggedInUserId = String(req.user?.id);
+    const searchTerm = String(req.query.searchTerm || "");
 
-    const requests = await ChatRoom.find({
-      chatRequestSenderId: userId
-    })
-      .sort({ createdAt: -1 });
+    const sequelize = getSequelize();
+
+    const [roles]: any = await sequelize.query(`
+      SELECT id, title FROM roles 
+      WHERE title = 'Team Manager'
+    `);
+
+    const playerRolId = roles?.[0]?.id;
+
+
+    if (!playerRolId) {
+      return res.status(404).json({
+        status: false,
+        message: "Player role not found"
+      });
+    }
+
+    // get all players
+    const users = await User.findAll({
+      where: {
+        role_id: playerRolId,
+        [Op.or]: [
+          {
+            first_name: {
+              [Op.like]: `%${searchTerm}%`
+            }
+          },
+          {
+            last_name: {
+              [Op.like]: `%${searchTerm}%`
+            }
+          }
+        ]
+      },
+      attributes: [
+        "id",
+        "first_name",
+        "last_name",
+        "profile_picture"
+      ]
+    });
+
+    // get requested chatrooms by logged in user
+    const requestedChats = await ChatRoom.find({
+      chatRequestSenderId: loggedInUserId
+    }).select("participants");
+
+    // create requested user id set
+    const requestedUserIds = new Set<string>();
+
+    requestedChats.forEach((chat: any) => {
+      chat.participants.forEach((participant: any) => {
+        if (participant.userId !== loggedInUserId) {
+          requestedUserIds.add(String(participant.userId));
+        }
+      });
+    });
+
+    // final response
+    const finalData = users.map((user: any) => ({
+      userId: user.id,
+      name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
+      profile_picture: user.profile_picture,
+      isRequested: requestedUserIds.has(String(user.id))
+    }));
 
     return res.status(200).json({
       status: true,
-      message: "User requested chats fetched successfully",
-      data: requests
+      message: "Users fetched successfully",
+      data: finalData
     });
 
   } catch (error) {
