@@ -90,5 +90,6 @@ router.put("/update-group-details", authorize, chatController.updateGroupDetails
 router.post("/create-poll", authorize, chatController.createPoll);
 
 router.post("/create-team-chat", authorize, chatController.createTeamSupportChat);
+router.get("/get-user-requests", authorize, chatController.getUserRequests);
 
 export default router;

@@ -2055,3 +2055,29 @@ export const createTeamSupportChat = async (
     });
   }
 };
+
+
+export const getUserRequests = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = String(req.user?.id);
+
+    const requests = await ChatRoom.find({
+      chatRequestSenderId: userId
+    })
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      status: true,
+      message: "User requested chats fetched successfully",
+      data: requests
+    });
+
+  } catch (error) {
+    console.log("getUserRequests error:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: "Internal server error"
+    });
+  }
+};
