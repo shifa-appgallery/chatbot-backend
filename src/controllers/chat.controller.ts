@@ -2099,7 +2099,6 @@ export const getUserRequests = async (req: AuthRequest, res: Response) => {
         "id",
         "first_name",
         "last_name",
-        "profile_picture"
       ]
     });
 
@@ -2123,7 +2122,6 @@ export const getUserRequests = async (req: AuthRequest, res: Response) => {
     const finalData = users.map((user: any) => ({
       userId: user.id,
       name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
-      profile_picture: user.profile_picture,
       isRequested: requestedUserIds.has(String(user.id))
     }));
 
