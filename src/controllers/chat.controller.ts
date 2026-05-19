@@ -12,6 +12,7 @@ import { getSequelize } from "../config/mysql";
 import { PROFILE_URL, TEAM_LOGO_URL } from "../constant/url";
 import mongoose from "mongoose";
 import { MESSAGE_TYPES } from "../constant/enum";
+import { Teams } from "../models/mysql/Teams";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -2055,59 +2056,65 @@ export const createTeamSupportChat = async (
     });
   }
 };
-
-export const getUserRequests = async (req: AuthRequest, res: Response) => {
+export const getUserRequests = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
+
     const loggedInUserId = String(req.user?.id);
     const searchTerm = String(req.query.searchTerm || "");
 
     const sequelize = getSequelize();
 
+    // get Team Manager role
     const [roles]: any = await sequelize.query(`
-      SELECT id, title FROM roles 
-      WHERE title = 'Team Manager'
+      SELECT id, title FROM roles
+      WHERE title = 'Player'
     `);
 
-    const playerRolId = roles?.[0]?.id;
+    const playerRoleId = roles?.[0]?.id;
 
-
-    if (!playerRolId) {
+    if (!playerRoleId) {
       return res.status(404).json({
         status: false,
         message: "Player role not found"
       });
     }
 
-    // get all players
+    // get users with team
     const users = await User.findAll({
       where: {
-        role_id: playerRolId,
-        [Op.or]: [
-          {
-            first_name: {
+        role_id: playerRoleId
+      },
+
+      include: [
+        {
+          model: Teams,
+          as: "team",
+          required: true,
+          where: {
+            team_name: {
               [Op.like]: `%${searchTerm}%`
             }
           },
-          {
-            last_name: {
-              [Op.like]: `%${searchTerm}%`
-            }
-          }
-        ]
-      },
+          attributes: ["id", "team_name"]
+        }
+      ],
+
       attributes: [
         "id",
         "first_name",
-        "last_name",
+        "last_name"
       ]
     });
 
-    // get requested chatrooms by logged in user
+    // requested chats
     const requestedChats = await ChatRoom.find({
       chatRequestSenderId: loggedInUserId
     }).select("participants");
 
-    // create requested user id set
+    // requested user ids
     const requestedUserIds = new Set<string>();
 
     requestedChats.forEach((chat: any) => {
@@ -2118,10 +2125,10 @@ export const getUserRequests = async (req: AuthRequest, res: Response) => {
       });
     });
 
-    // final response
+    // response
     const finalData = users.map((user: any) => ({
       userId: user.id,
-      name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
+      name: user.team?.team_name || null,
       isRequested: requestedUserIds.has(String(user.id))
     }));
 
