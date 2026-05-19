@@ -2067,10 +2067,12 @@ export const getUserRequests = async (
 
     const sequelize = getSequelize();
 
-    // get Team Manager role
+    // get Player role
     const [roles]: any = await sequelize.query(`
-      SELECT id, title FROM roles
+      SELECT id, title 
+      FROM roles
       WHERE title = 'Player'
+      LIMIT 1
     `);
 
     const playerRoleId = roles?.[0]?.id;
@@ -2093,12 +2095,17 @@ export const getUserRequests = async (
           model: Teams,
           as: "team",
           required: true,
+
           where: {
             team_name: {
               [Op.like]: `%${searchTerm}%`
             }
           },
-          attributes: ["id", "team_name"]
+
+          attributes: [
+            "id",
+            "team_name"
+          ]
         }
       ],
 
@@ -2109,27 +2116,48 @@ export const getUserRequests = async (
       ]
     });
 
-    // requested chats
+    // get requested chats
     const requestedChats = await ChatRoom.find({
       chatRequestSenderId: loggedInUserId
     }).select("participants");
 
-    // requested user ids
+    // create requested user ids set
     const requestedUserIds = new Set<string>();
 
     requestedChats.forEach((chat: any) => {
-      chat.participants.forEach((participant: any) => {
-        if (participant.userId !== loggedInUserId) {
-          requestedUserIds.add(String(participant.userId));
-        }
-      });
+
+      if (chat?.participants?.length) {
+
+        chat.participants.forEach((participant: any) => {
+
+          if (
+            participant?.userId &&
+            participant.userId !== loggedInUserId
+          ) {
+            requestedUserIds.add(String(participant.userId));
+          }
+
+        });
+
+      }
+
     });
 
-    // response
+    // final response
     const finalData = users.map((user: any) => ({
+
       userId: user.id,
-      name: user.team?.team_name || null,
-      isRequested: requestedUserIds.has(String(user.id))
+
+      name: user.team?.team_name || "",
+
+      firstName: user.first_name || "",
+
+      lastName: user.last_name || "",
+
+      isRequested: requestedUserIds.has(
+        String(user.id)
+      )
+
     }));
 
     return res.status(200).json({
@@ -2139,11 +2167,13 @@ export const getUserRequests = async (
     });
 
   } catch (error) {
+
     console.log("getUserRequests error:", error);
 
     return res.status(500).json({
       status: false,
       message: "Internal server error"
     });
+
   }
 };
