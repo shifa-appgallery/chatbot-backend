@@ -2084,13 +2084,15 @@ export const getUserRequests = async (
       });
     }
     const [users]: any = await sequelize.query(`
-  SELECT 
+  SELECT DISTINCT
     u.user_id AS id,
+
     CONCAT(
       COALESCE(u.first_name, ''),
       ' ',
       COALESCE(u.last_name, '')
     ) AS name,
+
     u.profile_picture AS logo
 
   FROM users u
