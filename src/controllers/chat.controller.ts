@@ -2056,6 +2056,7 @@ export const createTeamSupportChat = async (
     });
   }
 };
+
 export const getUserRequests = async (
   req: AuthRequest,
   res: Response
@@ -2083,49 +2084,57 @@ export const getUserRequests = async (
         message: "Player role not found"
       });
     }
+
+    // get users
     const [users]: any = await sequelize.query(`
-  SELECT DISTINCT
-    u.user_id AS id,
+      SELECT DISTINCT
+        u.user_id AS id,
 
-    CONCAT(
-      COALESCE(u.first_name, ''),
-      ' ',
-      COALESCE(u.last_name, '')
-    ) AS name,
+        CONCAT(
+          COALESCE(u.first_name, ''),
+          ' ',
+          COALESCE(u.last_name, '')
+        ) AS name,
 
-    u.profile_picture AS logo
+        u.profile_picture AS logo
 
-  FROM users u
+      FROM users u
 
-  INNER JOIN team_users tu
-    ON tu.user_id = u.user_id
+      INNER JOIN team_users tu
+        ON tu.user_id = u.user_id
 
-  WHERE 
-    FIND_IN_SET(:playerRoleId, tu.team_role_ids)
-    AND (tu.isDelete = 0 OR tu.isDelete IS NULL)
+      WHERE 
+        FIND_IN_SET(:playerRoleId, tu.team_role_ids)
+        AND (tu.isDelete = 0 OR tu.isDelete IS NULL)
 
-    AND (
-      CONCAT(
-        COALESCE(u.first_name, ''),
-        ' ',
-        COALESCE(u.last_name, '')
-      ) LIKE :search
-    )
-`, {
+        AND (
+          CONCAT(
+            COALESCE(u.first_name, ''),
+            ' ',
+            COALESCE(u.last_name, '')
+          ) LIKE :search
+        )
+    `, {
       replacements: {
         playerRoleId,
         search: `%${searchTerm}%`
       }
     });
+
     // get requested chats
     const requestedChats = await ChatRoom.find({
       chatRequestSenderId: loggedInUserId
-    }).select("participants");
+    }).select("participants chatRequestStatus");
 
     // create requested user ids set
     const requestedUserIds = new Set<string>();
 
     requestedChats.forEach((chat: any) => {
+
+      // skip rejected requests
+      if (chat.chatRequestStatus === "rejected") {
+        return;
+      }
 
       if (chat?.participants?.length) {
 
@@ -2133,9 +2142,11 @@ export const getUserRequests = async (
 
           if (
             participant?.userId &&
-            participant.userId !== loggedInUserId
+            String(participant.userId) !== loggedInUserId
           ) {
-            requestedUserIds.add(String(participant.userId));
+            requestedUserIds.add(
+              String(participant.userId)
+            );
           }
 
         });
@@ -2151,7 +2162,9 @@ export const getUserRequests = async (
 
       name: user.name || "",
 
-      logo: `${PROFILE_URL}${user.logo}` || null,
+      logo: user.logo
+        ? `${PROFILE_URL}${user.logo}`
+        : null,
 
       isRequested: requestedUserIds.has(
         String(user.id)
@@ -2168,13 +2181,13 @@ export const getUserRequests = async (
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
 
     console.log("getUserRequests error:", error);
 
     return res.status(500).json({
       status: false,
-      message: "Internal server error"
+      message: error.message || "Internal server error"
     });
 
   }
