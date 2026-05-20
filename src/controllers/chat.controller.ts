@@ -2083,30 +2083,38 @@ export const getUserRequests = async (
         message: "Player role not found"
       });
     }
-
     const [users]: any = await sequelize.query(`
   SELECT 
     u.user_id AS id,
-    t.name
+    CONCAT(
+      COALESCE(u.first_name, ''),
+      ' ',
+      COALESCE(u.last_name, '')
+    ) AS name,
+    u.profile_picture AS logo
+
   FROM users u
 
   INNER JOIN team_users tu
     ON tu.user_id = u.user_id
 
-  INNER JOIN teams t
-    ON t.id = tu.team_id
-
   WHERE 
     FIND_IN_SET(:playerRoleId, tu.team_role_ids)
     AND (tu.isDelete = 0 OR tu.isDelete IS NULL)
-    AND t.name LIKE :search
+
+    AND (
+      CONCAT(
+        COALESCE(u.first_name, ''),
+        ' ',
+        COALESCE(u.last_name, '')
+      ) LIKE :search
+    )
 `, {
       replacements: {
         playerRoleId,
         search: `%${searchTerm}%`
       }
     });
-
     // get requested chats
     const requestedChats = await ChatRoom.find({
       chatRequestSenderId: loggedInUserId
@@ -2137,9 +2145,11 @@ export const getUserRequests = async (
     // final response
     const finalData = users.map((user: any) => ({
 
-      userId: user.id,
+      id: String(user.id),
 
       name: user.name || "",
+
+      logo: `${PROFILE_URL}${user.logo}` || null,
 
       isRequested: requestedUserIds.has(
         String(user.id)
@@ -2150,7 +2160,10 @@ export const getUserRequests = async (
     return res.status(200).json({
       status: true,
       message: "Users fetched successfully",
-      data: finalData
+      players: {
+        data: finalData,
+        count: finalData.length
+      }
     });
 
   } catch (error) {
