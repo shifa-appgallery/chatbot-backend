@@ -45,6 +45,7 @@ io.engine.on("connection_error", (err) => {
 app.set("io", io);
 
 import { User } from "./models/mysql/User";
+import { initTeamModel } from "./models/mysql/Teams";
 
 io.use((socket, next) => {
   console.log("🔍 HANDSHAKE DEBUG START");
@@ -104,6 +105,7 @@ async function bootstrap() {
 
     initUserModel();
     initTeamUsersModel();
+    initTeamModel();
 
     await connectDB();
     console.log("MongoDB connected");

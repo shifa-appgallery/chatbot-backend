@@ -11,15 +11,15 @@ interface TeamUsersAttributes {
   isDelete?: boolean;
   notifications_id?: number;
   role_id?: number;
+  team_role_ids?: number;
 }
 
 interface TeamUsersCreationAttributes
-  extends Optional<TeamUsersAttributes, "id"> {}
+  extends Optional<TeamUsersAttributes, "id"> { }
 
 export class TeamUsers
   extends Model<TeamUsersAttributes, TeamUsersCreationAttributes>
-  implements TeamUsersAttributes
-{
+  implements TeamUsersAttributes {
   public id!: number;
   public team_id!: number;
   public user_id!: number;
@@ -29,6 +29,7 @@ export class TeamUsers
   public isDelete!: boolean;
   public notifications_id!: number;
   public role_id!: number;
+  public team_role_ids!: number;
 }
 
 export const initTeamUsersModel = () => {
@@ -69,6 +70,9 @@ export const initTeamUsersModel = () => {
       role_id: {
         type: DataTypes.INTEGER,
       },
+      team_role_ids: {
+        type: DataTypes.INTEGER,
+      }
     },
     {
       sequelize,

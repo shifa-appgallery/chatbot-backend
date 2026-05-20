@@ -2084,36 +2084,27 @@ export const getUserRequests = async (
       });
     }
 
-    // get users with team
-    const users = await User.findAll({
-      where: {
-        role_id: playerRoleId
-      },
+    const [users]: any = await sequelize.query(`
+  SELECT 
+    u.user_id AS id,
+    t.name
+  FROM users u
 
-      include: [
-        {
-          model: Teams,
-          as: "team",
-          required: true,
+  INNER JOIN team_users tu
+    ON tu.user_id = u.user_id
 
-          where: {
-            team_name: {
-              [Op.like]: `%${searchTerm}%`
-            }
-          },
+  INNER JOIN teams t
+    ON t.id = tu.team_id
 
-          attributes: [
-            "id",
-            "team_name"
-          ]
-        }
-      ],
-
-      attributes: [
-        "id",
-        "first_name",
-        "last_name"
-      ]
+  WHERE 
+    FIND_IN_SET(:playerRoleId, tu.team_role_ids)
+    AND (tu.isDelete = 0 OR tu.isDelete IS NULL)
+    AND t.name LIKE :search
+`, {
+      replacements: {
+        playerRoleId,
+        search: `%${searchTerm}%`
+      }
     });
 
     // get requested chats
@@ -2148,11 +2139,7 @@ export const getUserRequests = async (
 
       userId: user.id,
 
-      name: user.team?.team_name || "",
-
-      firstName: user.first_name || "",
-
-      lastName: user.last_name || "",
+      name: user.name || "",
 
       isRequested: requestedUserIds.has(
         String(user.id)

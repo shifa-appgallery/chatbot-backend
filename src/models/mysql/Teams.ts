@@ -5,7 +5,7 @@ import { getSequelize } from "../../config/mysql";
 
 interface TeamAttributes {
   id: number;
-  team_name: string;
+  name: string;
   manager_id: number;
 }
 
@@ -17,7 +17,7 @@ export class Teams
   implements TeamAttributes {
 
   public id!: number;
-  public team_name!: string;
+  public name!: string;
   public manager_id!: number;
 }
 
@@ -37,7 +37,7 @@ export const initTeamModel = () => {
         primaryKey: true
       },
 
-      team_name: {
+      name: {
         type: DataTypes.STRING,
         allowNull: false
       },
