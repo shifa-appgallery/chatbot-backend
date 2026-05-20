@@ -2166,7 +2166,7 @@ export const getUserRequests = async (
         ? `${PROFILE_URL}${user.logo}`
         : null,
 
-      isRequested: requestedUserIds.has(
+      requestStatus: requestedUserIds.has(
         String(user.id)
       )
 
