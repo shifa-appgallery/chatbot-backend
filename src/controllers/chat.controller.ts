@@ -2068,9 +2068,9 @@ export const getUserRequests = async (
 
     const sequelize = getSequelize();
 
-    // get Player role
+    // GET PLAYER ROLE
     const [roles]: any = await sequelize.query(`
-      SELECT id, title 
+      SELECT id, title
       FROM roles
       WHERE title = 'Player'
       LIMIT 1
@@ -2085,7 +2085,7 @@ export const getUserRequests = async (
       });
     }
 
-    // get users
+    // GET PLAYERS
     const [users]: any = await sequelize.query(`
       SELECT DISTINCT
         u.user_id AS id,
@@ -2103,7 +2103,7 @@ export const getUserRequests = async (
       INNER JOIN team_users tu
         ON tu.user_id = u.user_id
 
-      WHERE 
+      WHERE
         FIND_IN_SET(:playerRoleId, tu.team_role_ids)
         AND (tu.isDelete = 0 OR tu.isDelete IS NULL)
 
@@ -2121,61 +2121,80 @@ export const getUserRequests = async (
       }
     });
 
-    // get requested chats
-    const requestedChats = await ChatRoom.find({
-      chatRequestSenderId: loggedInUserId
-    }).select("participants chatRequestStatus");
+    // GET ALL PERSONAL CHATS OF LOGGED IN USER
+    const chats = await ChatRoom.find({
+      "participants.userId": loggedInUserId
+    }).select(`
+      participants
+      chatRequestStatus
+      chatRequestSenderId
+    `);
 
-    // store request status by userId
+    // STORE STATUS BY USER ID
     const requestStatusMap = new Map<string, string>();
 
-    requestedChats.forEach((chat: any) => {
+    chats.forEach((chat: any) => {
 
-      if (chat?.participants?.length) {
+      if (!chat?.participants?.length) {
+        return;
+      }
 
-        chat.participants.forEach((participant: any) => {
+      // FIND OTHER USER
+      const otherParticipant = chat.participants.find(
+        (participant: any) =>
+          String(participant.userId) !== loggedInUserId
+      );
 
-          if (
-            participant?.userId &&
-            String(participant.userId) !== loggedInUserId
-          ) {
+      if (!otherParticipant?.userId) {
+        return;
+      }
 
-            const participantId = String(participant.userId);
+      const participantId = String(
+        otherParticipant.userId
+      );
 
-            if (chat.chatRequestStatus === "pending") {
-              requestStatusMap.set(
-                participantId,
-                "requested"
-              );
-            }
+      // ACCEPTED = FRIENDS
+      if (chat.chatRequestStatus === "accepted") {
 
-            else if (
-              chat.chatRequestStatus === "accepted"
-            ) {
-              requestStatusMap.set(
-                participantId,
-                "friends"
-              );
-            }
+        requestStatusMap.set(
+          participantId,
+          "friends"
+        );
 
-            else if (
-              chat.chatRequestStatus === "rejected"
-            ) {
-              requestStatusMap.set(
-                participantId,
-                "none"
-              );
-            }
+      }
 
-          }
+      // PENDING
+      else if (
+        chat.chatRequestStatus === "pending"
+      ) {
 
-        });
+        requestStatusMap.set(
+          participantId,
+          "requested"
+        );
+
+      }
+
+      // REJECTED
+      else {
+
+        // ONLY SET NONE IF NO OTHER STATUS EXISTS
+        if (
+          !requestStatusMap.has(participantId)
+        ) {
+
+          requestStatusMap.set(
+            participantId,
+            "none"
+          );
+
+        }
 
       }
 
     });
 
-    // final response
+    // FINAL RESPONSE
     const finalData = users.map((user: any) => ({
 
       id: String(user.id),
@@ -2204,11 +2223,16 @@ export const getUserRequests = async (
 
   } catch (error: any) {
 
-    console.log("getUserRequests error:", error);
+    console.log(
+      "getUserRequests error:",
+      error
+    );
 
     return res.status(500).json({
       status: false,
-      message: error.message || "Internal server error"
+      message:
+        error.message ||
+        "Internal server error"
     });
 
   }
