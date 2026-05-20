@@ -2160,8 +2160,8 @@ export const getUserRequests = async (
     return res.status(200).json({
       status: true,
       message: "Users fetched successfully",
-      players: {
-        data: finalData,
+      data: {
+        players: finalData,
         count: finalData.length
       }
     });
