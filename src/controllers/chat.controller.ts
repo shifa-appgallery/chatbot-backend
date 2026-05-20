@@ -2126,15 +2126,10 @@ export const getUserRequests = async (
       chatRequestSenderId: loggedInUserId
     }).select("participants chatRequestStatus");
 
-    // create requested user ids set
-    const requestedUserIds = new Set<string>();
+    // store request status by userId
+    const requestStatusMap = new Map<string, string>();
 
     requestedChats.forEach((chat: any) => {
-
-      // skip rejected requests
-      if (chat.chatRequestStatus === "rejected") {
-        return;
-      }
 
       if (chat?.participants?.length) {
 
@@ -2144,9 +2139,34 @@ export const getUserRequests = async (
             participant?.userId &&
             String(participant.userId) !== loggedInUserId
           ) {
-            requestedUserIds.add(
-              String(participant.userId)
-            );
+
+            const participantId = String(participant.userId);
+
+            if (chat.chatRequestStatus === "pending") {
+              requestStatusMap.set(
+                participantId,
+                "requested"
+              );
+            }
+
+            else if (
+              chat.chatRequestStatus === "accepted"
+            ) {
+              requestStatusMap.set(
+                participantId,
+                "friends"
+              );
+            }
+
+            else if (
+              chat.chatRequestStatus === "rejected"
+            ) {
+              requestStatusMap.set(
+                participantId,
+                "none"
+              );
+            }
+
           }
 
         });
@@ -2166,9 +2186,10 @@ export const getUserRequests = async (
         ? `${PROFILE_URL}${user.logo}`
         : null,
 
-      requestStatus: requestedUserIds.has(
-        String(user.id)
-      )
+      requestStatus:
+        requestStatusMap.get(
+          String(user.id)
+        ) || "none"
 
     }));
 
