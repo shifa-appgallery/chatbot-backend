@@ -221,8 +221,19 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             if (
               normalizedMention !== normalizedUserName
             ) {
-              return false;
+
+              console.warn(
+                "Mention index mismatch",
+                {
+                  mentionText,
+                  normalizedMention,
+                  normalizedUserName,
+                  mention: m
+                }
+              );
             }
+
+            return true;
 
             return true;
           })
