@@ -15,13 +15,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         return socket.emit("error", { message: "userId is required" });
       }
 
-      // ✅ 1. Check existing room (1-to-1)
       let room = await ChatRooms.findOne({
         "participants.userId": { $all: [currentUser, userId] },
         "participants": { $size: 2 }
       });
 
-      // ✅ 2. Create if not exists
       if (!room) {
         room = await ChatRooms.create({
           participants: [
@@ -33,10 +31,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       const roomId = room._id.toString();
 
-      // ✅ 3. Join current user
       socket.join(roomId);
 
-      // ✅ 4. Join other user if online
       const otherSocket = [...io.sockets.sockets.values()]
         .find(s => String((s as any).user?._id) === userId);
 
@@ -44,7 +40,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         otherSocket.join(roomId);
       }
 
-      // ✅ 5. Emit result
       socket.emit("room_created", room);
 
       console.log(`Room ready: ${roomId}`);

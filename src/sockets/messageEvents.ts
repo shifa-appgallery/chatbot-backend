@@ -200,16 +200,26 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             }
 
             // VALID TEXT MATCH
+
             const mentionText =
               message.substring(
                 m.startIndex,
                 m.endIndex
               );
 
+            const normalizedMention =
+              mentionText
+                .replace("@", "")
+                .replace(/\s+/g, " ")
+                .trim();
+
+            const normalizedUserName =
+              m.userName
+                .replace(/\s+/g, " ")
+                .trim();
+
             if (
-              !mentionText.includes(
-                m.userName
-              )
+              normalizedMention !== normalizedUserName
             ) {
               return false;
             }
@@ -277,8 +287,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         senderName,
         senderProfile,
 
-         isForwarded:
-    msg.isForwarded || false,
+        isForwarded:
+          msg.isForwarded || false,
 
         displayMessage:
           messageType ===
