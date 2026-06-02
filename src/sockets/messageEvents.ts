@@ -1697,113 +1697,209 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   }
   );
 
-  socket.on("get_unread_count", async ({ roomId }: { roomId?: string }) => {
-    try {
-      const userId = String(socket.user?._id);
+  socket.on(
+    "get_unread_count",
+    async ({ roomId }: { roomId?: string }) => {
+      try {
 
-      const roomMatch: any = {
-        "participants.userId": userId
-      };
+        const userId = String(socket.user?._id);
 
-      if (roomId) {
-        roomMatch._id = roomId;
-      }
+        console.log("User ID:", userId);
+        console.log("Room ID:", roomId);
 
-      const rooms = await ChatRooms.find(roomMatch)
-        .select("_id")
-        .lean();
+        const roomMatch: any = {
+          "participants.userId": userId
+        };
 
-      if (!rooms.length) {
-
-        socket.emit("unread_count", {
-          totalUnreadMessages: 0,
-          totalChatsUnread: 0,
-          data: []
-        });
-
-        return;
-      }
-
-      const roomIds = rooms.map(
-        (room: any) => room._id
-      );
-
-      const result = await Messages.aggregate([
-        {
-          $match: {
-            roomId: {
-              $in: roomIds
-            },
-
-            senderId: {
-              $ne: userId
-            },
-
-            readBy: {
-              $not: {
-                $elemMatch: {
-                  userId
-                }
-              }
-            },
-
-            isDeleted: false
-          }
-        },
-        {
-          $group: {
-            _id: "$roomId",
-            unreadCount: {
-              $sum: 1
-            }
-          }
+        if (roomId) {
+          roomMatch._id = roomId;
         }
-      ]);
 
-      if (roomId) {
-
-        socket.emit("unread_count", {
-          roomId,
-          unreadCount:
-            result[0]?.unreadCount || 0
-        });
-
-        return;
-      }
-
-      const totalUnreadMessages =
-        result.reduce(
-          (
-            sum: number,
-            room: any
-          ) =>
-            sum + room.unreadCount,
-          0
+        console.log(
+          "Room Match Query:",
+          JSON.stringify(roomMatch, null, 2)
         );
 
-      socket.emit("unread_count", {
-        totalUnreadMessages,
-        totalChatsUnread:
-          result.length,
-        data: result
-      });
+        const rooms = await ChatRooms.find(roomMatch)
+          .select("_id")
+          .lean();
 
-    } catch (err) {
 
-      console.error(
-        "get_unread_count error:",
-        err
-      );
+        console.log(
+          "Rooms:",
+          rooms
+        );
 
-      socket.emit(
-        "unread_count_error",
-        {
-          message:
-            "Failed to fetch unread count"
+        if (!rooms.length) {
+
+          console.log(
+            "No rooms found for user"
+          );
+
+          socket.emit("unread_count", {
+            totalUnreadMessages: 0,
+            totalChatsUnread: 0,
+            data: []
+          });
+
+          return;
         }
-      );
+
+        const roomIds = rooms.map(
+          (room: any) => room._id
+        );
+
+        console.log(
+          "Room IDs:",
+          roomIds
+        );
+
+        const matchQuery = {
+          roomId: {
+            $in: roomIds
+          },
+
+          senderId: {
+            $ne: userId
+          },
+
+          readBy: {
+            $not: {
+              $elemMatch: {
+                userId
+              }
+            }
+          },
+
+          isDeleted: false
+        };
+
+        console.log(
+          "Message Match Query:",
+          JSON.stringify(matchQuery, null, 2)
+        );
+
+        const result =
+          await Messages.aggregate([
+            {
+              $match: matchQuery
+            },
+            {
+              $group: {
+                _id: "$roomId",
+                unreadCount: {
+                  $sum: 1
+                }
+              }
+            }
+          ]);
+
+        console.log(
+          "Aggregation Result:"
+        );
+
+        console.log(
+          JSON.stringify(
+            result,
+            null,
+            2
+          )
+        );
+
+        if (roomId) {
+
+          const unreadCount =
+            result[0]?.unreadCount || 0;
+
+          console.log(
+            "Single Room Unread Count:",
+            unreadCount
+          );
+
+          socket.emit(
+            "unread_count",
+            {
+              roomId,
+              unreadCount
+            }
+          );
+
+          console.log(
+            "Single room response emitted"
+          );
+
+          return;
+        }
+
+        const totalUnreadMessages =
+          result.reduce(
+            (
+              sum: number,
+              room: any
+            ) =>
+              sum + room.unreadCount,
+            0
+          );
+
+        console.log(
+          "Total Unread Messages:",
+          totalUnreadMessages
+        );
+
+        console.log(
+          "Total Chats With Unread:",
+          result.length
+        );
+
+        const response = {
+          totalUnreadMessages,
+          totalChatsUnread:
+            result.length,
+          data: result
+        };
+
+        console.log(
+          "Socket Response:"
+        );
+
+        console.log(
+          JSON.stringify(
+            response,
+            null,
+            2
+          )
+        );
+
+        socket.emit(
+          "unread_count",
+          response
+        );
+
+        console.log(
+          "Unread count emitted successfully"
+        );
+
+        console.log(
+          "========== END GET UNREAD COUNT ==========\n"
+        );
+
+      } catch (err) {
+
+        console.error(
+          "========== GET UNREAD COUNT ERROR =========="
+        );
+
+        console.error(err);
+
+        socket.emit(
+          "unread_count_error",
+          {
+            message:
+              "Failed to fetch unread count"
+          }
+        );
+      }
     }
-  }
-);
+  );
 
 };
