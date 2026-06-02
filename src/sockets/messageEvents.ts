@@ -1697,4 +1697,113 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   }
   );
 
+  socket.on("get_unread_count", async ({ roomId }: { roomId?: string }) => {
+    try {
+      const userId = String(socket.user?._id);
+
+      const roomMatch: any = {
+        "participants.userId": userId
+      };
+
+      if (roomId) {
+        roomMatch._id = roomId;
+      }
+
+      const rooms = await ChatRooms.find(roomMatch)
+        .select("_id")
+        .lean();
+
+      if (!rooms.length) {
+
+        socket.emit("unread_count", {
+          totalUnreadMessages: 0,
+          totalChatsUnread: 0,
+          data: []
+        });
+
+        return;
+      }
+
+      const roomIds = rooms.map(
+        (room: any) => room._id
+      );
+
+      const result = await Messages.aggregate([
+        {
+          $match: {
+            roomId: {
+              $in: roomIds
+            },
+
+            senderId: {
+              $ne: userId
+            },
+
+            readBy: {
+              $not: {
+                $elemMatch: {
+                  userId
+                }
+              }
+            },
+
+            isDeleted: false
+          }
+        },
+        {
+          $group: {
+            _id: "$roomId",
+            unreadCount: {
+              $sum: 1
+            }
+          }
+        }
+      ]);
+
+      if (roomId) {
+
+        socket.emit("unread_count", {
+          roomId,
+          unreadCount:
+            result[0]?.unreadCount || 0
+        });
+
+        return;
+      }
+
+      const totalUnreadMessages =
+        result.reduce(
+          (
+            sum: number,
+            room: any
+          ) =>
+            sum + room.unreadCount,
+          0
+        );
+
+      socket.emit("unread_count", {
+        totalUnreadMessages,
+        totalChatsUnread:
+          result.length,
+        data: result
+      });
+
+    } catch (err) {
+
+      console.error(
+        "get_unread_count error:",
+        err
+      );
+
+      socket.emit(
+        "unread_count_error",
+        {
+          message:
+            "Failed to fetch unread count"
+        }
+      );
+    }
+  }
+);
+
 };
