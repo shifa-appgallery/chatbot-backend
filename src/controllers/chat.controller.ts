@@ -1954,7 +1954,7 @@ export const createTeamSupportChat = async (
       });
     }
 
-    const managerUser: any = await User.findOne({
+    const managerUsers: any = await User.findAll({
       where: {
         id: {
           [Op.in]: userIds
@@ -1970,7 +1970,7 @@ export const createTeamSupportChat = async (
       raw: true
     });
 
-    if (!managerUser) {
+    if (!managerUsers) {
       return res.status(404).json({
         status: false,
         message: "Team Manager not found"
@@ -1982,20 +1982,6 @@ export const createTeamSupportChat = async (
     const existingRoom = await ChatRoom.findOne({
       isGroup: true,
       teamId: String(teamId),
-      participants: {
-        $all: [
-          {
-            $elemMatch: {
-              userId: String(currentUser.id)
-            }
-          },
-          {
-            $elemMatch: {
-              userId: String(managerUser.id)
-            }
-          }
-        ]
-      }
     });
 
     if (existingRoom) {
@@ -2006,6 +1992,41 @@ export const createTeamSupportChat = async (
       });
     }
 
+    const participants: any[] = [
+      {
+        userId: String(currentUser.id),
+        first_Name: currentUser.first_name || "",
+        last_name: currentUser.last_name || "",
+        profile_picture: currentUser.profile_picture
+          ? currentUser.profile_picture.startsWith("http")
+            ? currentUser.profile_picture
+            : `${PROFILE_URL}${currentUser.profile_picture}`
+          : null,
+        role: "member",
+        joinedAt: new Date()
+      }
+    ];
+
+    // ADD ALL TEAM MANAGERS AS ADMINS
+    managerUsers.forEach((manager: any) => {
+
+      participants.push({
+        userId: String(manager.id),
+        first_Name: manager.first_name || "",
+        last_name: manager.last_name || "",
+        profile_picture: manager.profile_picture
+          ? manager.profile_picture.startsWith("http")
+            ? manager.profile_picture
+            : `${PROFILE_URL}${manager.profile_picture}`
+          : null,
+        role: "admin",
+        joinedAt: new Date()
+      });
+
+    });
+
+
+
     // CREATE CHAT
     const room = await ChatRoom.create({
       name: team.name,
@@ -2014,29 +2035,7 @@ export const createTeamSupportChat = async (
       groupImage: team.logo ? TEAM_LOGO_URL + team.logo : "",
       chatRequestStatus: "accepted",
 
-      participants: [
-        {
-          userId: String(currentUser.id),
-          first_Name: currentUser.first_name || "",
-          last_name: currentUser.last_name || "",
-          profile_picture: currentUser.profile_picture ? currentUser.profile_picture.startsWith("http")
-            ? currentUser.profile_picture
-            : `${PROFILE_URL}${currentUser.profile_picture}`
-            : null,
-          role: "member",
-          joinedAt: new Date()
-        },
-        {
-          userId: String(managerUser.id),
-          first_Name: team.name, // SHOW TEAM NAME
-          last_name: "",
-          profile_picture: team.logo
-            ? TEAM_LOGO_URL + team.logo
-            : "",
-          role: "member",
-          joinedAt: new Date()
-        }
-      ],
+      participants,
 
       createdBy: String(currentUser.id)
     });
