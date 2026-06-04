@@ -1980,7 +1980,7 @@ export const createTeamSupportChat = async (
 
     // CHECK EXISTING CHAT
     const existingRoom = await ChatRoom.findOne({
-      isGroup: false,
+      isGroup: true,
       teamId: String(teamId),
       participants: {
         $all: [
@@ -2009,7 +2009,7 @@ export const createTeamSupportChat = async (
     // CREATE CHAT
     const room = await ChatRoom.create({
       name: team.name,
-      isGroup: false,
+      isGroup: true,
       teamId: String(teamId),
       groupImage: team.logo ? TEAM_LOGO_URL + team.logo : "",
       chatRequestStatus: "accepted",
