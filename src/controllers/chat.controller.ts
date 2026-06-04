@@ -2007,6 +2007,7 @@ export const createTeamSupportChat = async (
       }
     ];
 
+
     // ADD ALL TEAM MANAGERS AS ADMINS
     managerUsers.forEach((manager: any) => {
 
@@ -2040,10 +2041,15 @@ export const createTeamSupportChat = async (
       createdBy: String(currentUser.id)
     });
 
+    const adminIds = managerUsers.map((m: any) => String(m.id));
+
     return res.status(201).json({
       status: true,
       message: "Chat created successfully",
-      data: room
+      data: {
+        ...room.toJSON(),
+        adminIds
+      }
     });
 
   } catch (error) {
