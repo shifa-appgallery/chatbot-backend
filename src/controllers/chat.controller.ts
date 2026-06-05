@@ -1979,18 +1979,18 @@ export const createTeamSupportChat = async (
 
 
     // CHECK EXISTING CHAT
-    const existingRoom = await ChatRoom.findOne({
-      isGroup: true,
-      teamId: String(teamId),
-    });
+    // const existingRoom = await ChatRoom.findOne({
+    //   isGroup: true,
+    //   teamId: String(teamId),
+    // });
 
-    if (existingRoom) {
-      return res.status(200).json({
-        status: true,
-        message: "Chat already exists",
-        data: existingRoom
-      });
-    }
+    // if (existingRoom) {
+    //   return res.status(200).json({
+    //     status: true,
+    //     message: "Chat already exists",
+    //     data: existingRoom
+    //   });
+    // }
 
     const participants: any[] = [
       {
