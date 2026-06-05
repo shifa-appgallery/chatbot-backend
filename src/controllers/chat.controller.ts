@@ -4,7 +4,7 @@ import ChatRoom from "../models/ChatRooms";
 import Message from "../models/Messages";
 import UserPreference from "../models/UserPreference";
 import { AuthRequest } from "../middleware/authorize";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import { User } from "../models/mysql/User";
 import UserDevice from "../models/UserDevice";
 import { TeamUsers } from "../models/mysql/TeamUsers";
@@ -1935,42 +1935,48 @@ export const createTeamSupportChat = async (
       });
     }
 
-    const teamUsers: any = await TeamUsers.findAll({
+    const managerTeamUsers: any = await TeamUsers.findAll({
       where: {
         team_id: teamId,
         isDelete: 0,
-        status: 1
+        status: 1,
+        [Op.and]: [
+          Sequelize.literal(
+            `FIND_IN_SET(${Number(teamManagerRoleId)}, team_role_ids)`
+          )
+        ]
       },
       attributes: ["user_id"],
       raw: true
     });
 
-    const userIds = teamUsers.map((u: any) => u.user_id);
+    const managerUserIds = managerTeamUsers.map(
+      (u: any) => u.user_id
+    );
 
-    if (!userIds.length) {
+    if (!managerUserIds.length) {
       return res.status(404).json({
         status: false,
-        message: "No users found in this team"
+        message: "Team Manager not found"
       });
     }
 
     const managerUsers: any = await User.findAll({
       where: {
         id: {
-          [Op.in]: userIds
-        },
-        role_id: teamManagerRoleId
+          [Op.in]: managerUserIds
+        }
       },
       attributes: [
         "id",
         "first_name",
         "last_name",
-        "profile_picture",
+        "profile_picture"
       ],
       raw: true
     });
 
-    if (!managerUsers) {
+    if (!managerUsers.length) {
       return res.status(404).json({
         status: false,
         message: "Team Manager not found"
