@@ -1623,26 +1623,30 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     try {
       const userId = socket.user?._id?.toString();
       if (!userId) return;
-
+      console.log("userId", userId)
       const room = await ChatRooms.findById(roomId);
       if (!room) return;
-
+      console.log("room", room)
       if (room.chatRequestStatus !== "pending") return;
 
-      const senderId = room.chatRequestSenderId;
-
-      // derive receiver from participants
+      const senderId = room.chatRequestSenderId?.toString();
+      console.log("senderId", senderId)
       const receiver = room.participants.find(
-        (p) => p.userId !== senderId
+        (p) => p.userId.toString() !== senderId
       );
+      console.log("receiver", receiver)
 
       if (!receiver) return;
 
-      // only receiver can accept
-      if (receiver.userId !== userId) return;
+      // ONLY receiver allowed
+      if (receiver.userId.toString() !== userId) return;
 
       room.chatRequestStatus = "accepted";
       await room.save();
+
+      console.log("updatedroom",room)
+
+      console.log("EMITTING ACCEPTED");
 
       io.to(roomId.toString()).emit("chat_request_accepted", {
         roomId,
@@ -1658,25 +1662,36 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     try {
       const userId = socket.user?._id?.toString();
       if (!userId) return;
+      console.log("userId", userId)
 
       const room = await ChatRooms.findById(roomId);
       if (!room) return;
 
       if (room.chatRequestStatus !== "pending") return;
+      console.log("room", room)
 
-      const senderId = room.chatRequestSenderId;
+      const senderId = room.chatRequestSenderId?.toString();
+      console.log("senderId", senderId)
 
+      // derive receiver from participants
       const receiver = room.participants.find(
-        (p) => p.userId !== senderId
+        (p) => p.userId.toString() !== senderId
       );
+      console.log("receiver", receiver)
 
-      if (!receiver) return;
+      if (!receiver) {
+        console.log("Receiver not found");
+        return;
+      }
 
-      // only receiver can reject
-      if (receiver.userId !== userId) return;
+      // ONLY receiver can reject
+      if (receiver.userId.toString() !== userId) return;
 
       room.chatRequestStatus = "rejected";
       await room.save();
+      console.log("updatedroom",room)
+
+      console.log("EMITTING REJECTED");
 
       io.to(roomId.toString()).emit("chat_request_rejected", {
         roomId,
