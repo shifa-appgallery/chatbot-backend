@@ -1621,81 +1621,72 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
   socket.on("accept_chat_request", async ({ roomId }) => {
     try {
+      const userId = socket.user?._id?.toString();
+      if (!userId) return;
 
-      const userId = String(socket.user?._id);
-
-      const room: any =
-        await ChatRooms.findById(roomId);
-
+      const room = await ChatRooms.findById(roomId);
       if (!room) return;
 
-      // RECEIVER ONLY
-      if (
-        room.chatRequestSenderId === userId
-      ) {
-        return;
-      }
+      if (room.chatRequestStatus !== "pending") return;
+
+      const senderId = room.chatRequestSenderId;
+
+      // derive receiver from participants
+      const receiver = room.participants.find(
+        (p) => p.userId !== senderId
+      );
+
+      if (!receiver) return;
+
+      // only receiver can accept
+      if (receiver.userId !== userId) return;
 
       room.chatRequestStatus = "accepted";
-
       await room.save();
 
-      io.to(roomId.toString()).emit(
-        "chat_request_accepted",
-        {
-          roomId,
-          chatRequestStatus: "accepted"
-        }
-      );
+      io.to(roomId.toString()).emit("chat_request_accepted", {
+        roomId,
+        chatRequestStatus: "accepted",
+      });
 
     } catch (err) {
-
-      console.error(
-        "accept_chat_request error:",
-        err
-      );
+      console.error("accept_chat_request error:", err);
     }
-  }
-  );
+  });
 
   socket.on("reject_chat_request", async ({ roomId }) => {
     try {
+      const userId = socket.user?._id?.toString();
+      if (!userId) return;
 
-      const userId = String(socket.user?._id);
-
-      const room: any =
-        await ChatRooms.findById(roomId);
-
+      const room = await ChatRooms.findById(roomId);
       if (!room) return;
 
-      // RECEIVER ONLY
-      if (
-        room.chatRequestSenderId === userId
-      ) {
-        return;
-      }
+      if (room.chatRequestStatus !== "pending") return;
+
+      const senderId = room.chatRequestSenderId;
+
+      const receiver = room.participants.find(
+        (p) => p.userId !== senderId
+      );
+
+      if (!receiver) return;
+
+      // only receiver can reject
+      if (receiver.userId !== userId) return;
 
       room.chatRequestStatus = "rejected";
-
       await room.save();
 
-      io.to(roomId.toString()).emit(
-        "chat_request_rejected",
-        {
-          roomId,
-          chatRequestStatus: "rejected"
-        }
-      );
+      io.to(roomId.toString()).emit("chat_request_rejected", {
+        roomId,
+        chatRequestStatus: "rejected",
+      });
 
     } catch (err) {
-
-      console.error(
-        "reject_chat_request error:",
-        err
-      );
+      console.error("reject_chat_request error:", err);
     }
-  }
-  );
+  });
 
   socket.on(
     "get_unread_count",
