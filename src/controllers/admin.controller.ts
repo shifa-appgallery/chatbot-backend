@@ -108,7 +108,6 @@ export const createGroupByRole = async (req: AuthRequest, res: Response) => {
       teamId: String(teamId),
       isGroup: true
     }).lean();
-    console.log("existingRoom", existingRoom)
 
     if (existingRoom) {
       return res.status(409).json({

@@ -19,7 +19,6 @@ export const socketAuth = (socket: Socket, next: (err?: Error) => void) => {
     (socket as any).user = decoded;
     next();
 
-    console.log("decoded",decoded)
   } catch (err) {
     next(new Error("Invalid token"));
   }

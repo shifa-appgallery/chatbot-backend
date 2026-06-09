@@ -42,8 +42,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       socket.emit("room_created", room);
 
-      console.log(`Room ready: ${roomId}`);
-
     } catch (err) {
       console.error("create_room error:", err);
       socket.emit("error", { message: "Failed to create room" });

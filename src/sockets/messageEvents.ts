@@ -114,11 +114,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         return;
       }
 
-      console.log(
-        "senderParticipant:",
-        senderParticipant
-      );
-
       const senderName =
         `${senderParticipant.first_Name} ${senderParticipant.last_name}`;
 
@@ -835,10 +830,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       try {
 
-        console.log(
-          "edit_message called"
-        );
-
         const senderId =
           String(socket.user?._id);
 
@@ -1193,11 +1184,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           room._id.toString()
         ).emit(
           "message_edited",
-          formattedMessage
-        );
-
-        console.log(
-          "formattedMessage:",
           formattedMessage
         );
 
@@ -1710,9 +1696,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
         const userId = String(socket.user?._id);
 
-        console.log("User ID:", userId);
-        console.log("Room ID:", roomId);
-
         const roomMatch: any = {
           "participants.userId": userId
         };
@@ -1721,26 +1704,13 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           roomMatch._id = roomId;
         }
 
-        console.log(
-          "Room Match Query:",
-          JSON.stringify(roomMatch, null, 2)
-        );
+
 
         const rooms = await ChatRooms.find(roomMatch)
           .select("_id")
           .lean();
 
-
-        console.log(
-          "Rooms:",
-          rooms
-        );
-
         if (!rooms.length) {
-
-          console.log(
-            "No rooms found for user"
-          );
 
           socket.emit("unread_count", {
             totalUnreadMessages: 0,
@@ -1753,11 +1723,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
         const roomIds = rooms.map(
           (room: any) => room._id
-        );
-
-        console.log(
-          "Room IDs:",
-          roomIds
         );
 
         const matchQuery = {
@@ -1780,11 +1745,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           isDeleted: false
         };
 
-        console.log(
-          "Message Match Query:",
-          JSON.stringify(matchQuery, null, 2)
-        );
-
         const result =
           await Messages.aggregate([
             {
@@ -1800,27 +1760,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             }
           ]);
 
-        console.log(
-          "Aggregation Result:"
-        );
-
-        console.log(
-          JSON.stringify(
-            result,
-            null,
-            2
-          )
-        );
-
         if (roomId) {
 
           const unreadCount =
             result[0]?.unreadCount || 0;
-
-          console.log(
-            "Single Room Unread Count:",
-            unreadCount
-          );
 
           socket.emit(
             "unread_count",
@@ -1828,10 +1771,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               roomId,
               unreadCount
             }
-          );
-
-          console.log(
-            "Single room response emitted"
           );
 
           return;
@@ -1847,16 +1786,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             0
           );
 
-        console.log(
-          "Total Unread Messages:",
-          totalUnreadMessages
-        );
-
-        console.log(
-          "Total Chats With Unread:",
-          result.length
-        );
-
         const response = {
           totalUnreadMessages,
           totalChatsUnread:
@@ -1864,29 +1793,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           data: result
         };
 
-        console.log(
-          "Socket Response:"
-        );
-
-        console.log(
-          JSON.stringify(
-            response,
-            null,
-            2
-          )
-        );
-
         socket.emit(
           "unread_count",
           response
-        );
-
-        console.log(
-          "Unread count emitted successfully"
-        );
-
-        console.log(
-          "========== END GET UNREAD COUNT ==========\n"
         );
 
       } catch (err) {

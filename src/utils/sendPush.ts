@@ -14,18 +14,31 @@ export const sendNotification = async (
     {
       message: {
         token: deviceToken,
+
         notification: {
           title,
-          body
+          body,
         },
+
         android: {
           notification: {
             tag: roomId || Date.now().toString(),
           },
         },
+
         apns: {
           headers: {
-            "apns-collapse-id": roomId || Date.now().toString(), 
+            "apns-collapse-id": roomId || Date.now().toString(),
+            "apns-priority": "10",
+          },
+          payload: {
+            aps: {
+              alert: {
+                title,
+                body,
+              },
+              sound: "default",
+            },
           },
         },
       },

@@ -48,11 +48,6 @@ import { User } from "./models/mysql/User";
 import { initTeamModel } from "./models/mysql/Teams";
 
 io.use((socket, next) => {
-  console.log("🔍 HANDSHAKE DEBUG START");
-  console.log("AUTH:", socket.handshake.auth);
-  console.log("QUERY:", socket.handshake.query);
-  console.log("HEADERS:", socket.handshake.headers);
-  console.log("🔍 HANDSHAKE DEBUG END");
   next();
 });
 

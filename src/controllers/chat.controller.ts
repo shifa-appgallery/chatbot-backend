@@ -1236,8 +1236,6 @@ export const saveDeviceToken = async (req: AuthRequest, res: Response) => {
       { upsert: true, returnDocument: "after" }
     );
 
-    console.log("Device token saved:", device?._id);
-
     return res.json({
       success: true,
       message: "Device token saved successfully"
@@ -1581,7 +1579,6 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
     }
 
     const teamIds = Object.keys(teamMap);
-    console.log("Total teams:", teamIds.length);
 
     // 3. Fetch existing groups
     const existingRooms = await ChatRoom.find({
@@ -2234,11 +2231,6 @@ export const getUserRequests = async (
     });
 
   } catch (error: any) {
-
-    console.log(
-      "getUserRequests error:",
-      error
-    );
 
     return res.status(500).json({
       status: false,
