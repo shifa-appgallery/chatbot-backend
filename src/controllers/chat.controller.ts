@@ -862,6 +862,9 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
             participants: {
               $each: newParticipants
             }
+          },
+          $set: {
+            chatRequestStatus: "accepted"
           }
         },
         { returnDocument: "after" }
@@ -1567,7 +1570,6 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
       attributes: ["team_id", "user_id", "role_id"],
       raw: true
     });
-
     // 2. Group by team_id
     const teamMap: Record<string, any[]> = {};
 
@@ -1579,7 +1581,7 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
     }
 
     const teamIds = Object.keys(teamMap);
-
+    // const teamIds = ["4"];
     // 3. Fetch existing groups
     const existingRooms = await ChatRoom.find({
       isGroup: true,
@@ -1589,7 +1591,6 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
     const existingRoomMap = new Map(
       existingRooms.map((room: any) => [String(room.teamId), room])
     );
-
     // 4. Fetch roles dynamically
     const [roles]: any = await sequelize.query(`
       SELECT id, title FROM roles 
@@ -1659,7 +1660,6 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
       const groupName = teamNameMap[teamId] || `Team ${teamId}`;
 
       const existingRoom = existingRoomMap.get(teamId);
-
       // 9. CREATE OR UPDATE
       if (!existingRoom) {
         //  CREATE
@@ -1668,19 +1668,20 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
           isGroup: true,
           teamId,
           groupImage,
+          chatRequestStatus: "accepted",
           participants,
           createdBy:
             participants.find((p: any) => p.role === "admin")?.userId ||
             participants[0]?.userId ||
             null
         });
-
         createdCount++;
       } else {
         //  UPDATE
         existingRoom.name = groupName;
         existingRoom.groupImage = groupImage;
         existingRoom.participants = participants;
+        existingRoom.chatRequestStatus = "accepted"
 
         existingRoom.createdBy =
           participants.find((p: any) => p.role === "admin")?.userId ||

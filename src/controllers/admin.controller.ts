@@ -244,7 +244,7 @@ export const addMembersToGroup = async (req: AuthRequest, res: Response) => {
     }));
 
     room.participants.push(...newParticipants);
-
+    room.chatRequestStatus = "accepted";
     await room.save();
 
     await Promise.all(
