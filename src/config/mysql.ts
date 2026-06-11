@@ -8,8 +8,8 @@ let sequelize: Sequelize;
 console.log(process.env.MYSQL_DB)
 console.log(process.env.MYSQL_USER)
 console.log(process.env.MYSQL_PASSWORD)
-            
-            
+
+
 
 export const connectWithSSH = async () => {
   return new Promise<Sequelize>((resolve, reject) => {
@@ -35,9 +35,9 @@ export const connectWithSSH = async () => {
           }
         );
       });
-
-      server.listen(process.env.MYSQL_PORT, async () => {
-        console.log(`🚀 Tunnel running on port process.env.MYSQL_PORT`);
+      const TUNNEL_PORT = Number(process.env.SSH_TUNNEL_PORT);
+      server.listen(TUNNEL_PORT, async () => {
+        console.log(`🚀 Tunnel running on port TUNNEL_PORT,`);
 
         try {
           sequelize = new Sequelize(
@@ -45,8 +45,8 @@ export const connectWithSSH = async () => {
             process.env.MYSQL_USER!,
             process.env.MYSQL_PASSWORD!,
             {
-              host: process.env.MYSQL_HOST,
-              port: Number(process.env.MYSQL_PORT),
+              host: "127.0.0.1",
+              port: Number(process.env.PORT),
               dialect: "mysql",
               logging: false,
             }
