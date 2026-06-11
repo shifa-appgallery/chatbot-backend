@@ -21,9 +21,9 @@ export const connectWithSSH = async () => {
       // Create local server (acts like tunnel)
       const server = net.createServer((localSocket) => {
         ssh.forwardOut(
-          localSocket.remoteAddress || "127.0.0.1",
+          localSocket.remoteAddress || String(process.env.MYSQL_HOST),
           localSocket.remotePort || 0,
-          "127.0.0.1",
+          String(process.env.MYSQL_HOST),
           3306,
           (err, stream) => {
             if (err) {
@@ -36,8 +36,8 @@ export const connectWithSSH = async () => {
         );
       });
 
-      server.listen(3307, "127.0.0.1", async () => {
-        console.log("🚀 Tunnel running on port 3307");
+      server.listen(process.env.MYSQL_PORT, async () => {
+        console.log(`🚀 Tunnel running on port process.env.MYSQL_PORT`);
 
         try {
           sequelize = new Sequelize(
