@@ -37,7 +37,7 @@ export const connectWithSSH = async () => {
       });
       const TUNNEL_PORT = Number(process.env.SSH_TUNNEL_PORT);
       server.listen(TUNNEL_PORT, async () => {
-        console.log(`🚀 Tunnel running on port TUNNEL_PORT,`);
+        console.log(`🚀 Tunnel running on port ${TUNNEL_PORT}`);
 
         try {
           sequelize = new Sequelize(
@@ -46,7 +46,7 @@ export const connectWithSSH = async () => {
             process.env.MYSQL_PASSWORD!,
             {
               host: "127.0.0.1",
-              port: 3307,
+              port: Number(process.env.SSH_TUNNEL_PORT),
               dialect: "mysql",
               logging: false,
             }
