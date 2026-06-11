@@ -45,8 +45,8 @@ export const connectWithSSH = async () => {
             process.env.MYSQL_USER!,
             process.env.MYSQL_PASSWORD!,
             {
-              host: "127.0.0.1",
-              port: 3307, // 👈 IMPORTANT
+              host: process.env.MYSQL_HOST,
+              port: Number(process.env.MYSQL_PORT),
               dialect: "mysql",
               logging: false,
             }
