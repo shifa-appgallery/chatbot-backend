@@ -17,7 +17,7 @@ router.post(
   adminController.addMembersToGroup
 );
 
-router.delete(
+router.post(
   "/remove-member-from-group",
   authorize,
   adminController.removeMemberFromGroup

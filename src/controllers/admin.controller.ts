@@ -30,6 +30,7 @@ export const createGroupByRole = async (req: AuthRequest, res: Response) => {
         isDelete: 0,
         status: 1
       },
+      attributes: ["user_id", "team_role_ids"],
       raw: true
     });
 
@@ -39,21 +40,35 @@ export const createGroupByRole = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const userWithRole: any = await User.findOne({
-      where: { id: userId },
-      attributes: ["id", "role_id"],
-      raw: true
-    });
+    if (!teamUser.team_role_ids) {
+      return res.status(403).json({
+        message: "No team role assigned"
+      });
+    }
 
-    const [roles]: any = await sequelize.query(`
-      SELECT id, title FROM roles 
-      WHERE id = ${userWithRole.role_id}
-    `);
+    const roleIds = teamUser.team_role_ids
+      .split(",")
+      .map((id: string) => Number(id.trim()))
+      .filter(Boolean);
 
+    const [roles]: any = await sequelize.query(
+      `
+    SELECT id, title
+    FROM roles
+    WHERE id IN (:roleIds)
+  `,
+      {
+        replacements: { roleIds }
+      }
+    );
 
-    const roleTitle = roles?.[0]?.title;
+    const allowedRoles = ['admin', 'Team Manager','superadmin','Club President'];
 
-    if (!["admin", "Team Manager", "superadmin"].includes(roleTitle)) {
+    const hasPermission = roles.some((role: any) =>
+      allowedRoles.includes(role.title)
+    );
+
+    if (!hasPermission) {
       return res.status(403).json({
         message: "Only admin or team manager can create group"
       });
@@ -101,6 +116,7 @@ export const createGroupByRole = async (req: AuthRequest, res: Response) => {
         ? PROFILE_URL + u.profile_picture
         : "",
       role: u.id === userId ? "admin" : "member",
+      chatRequestStatus: "accepted",
       joinedAt: new Date()
     }));
 
@@ -115,7 +131,7 @@ export const createGroupByRole = async (req: AuthRequest, res: Response) => {
         message: "Group already exists for this team"
       });
     }
-
+    
     const room = await ChatRooms.create({
       name: groupName,
       isGroup: true,

@@ -12,7 +12,6 @@ import { getSequelize } from "../config/mysql";
 import { PROFILE_URL, TEAM_LOGO_URL } from "../constant/url";
 import mongoose from "mongoose";
 import { MESSAGE_TYPES } from "../constant/enum";
-import { Teams } from "../models/mysql/Teams";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -1567,7 +1566,7 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
         isDelete: 0,
         status: 1
       },
-      attributes: ["team_id", "user_id", "role_id"],
+      attributes: ["team_id", "user_id", "team_role_ids"],
       raw: true
     });
     // 2. Group by team_id
@@ -1594,7 +1593,7 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
     // 4. Fetch roles dynamically
     const [roles]: any = await sequelize.query(`
       SELECT id, title FROM roles 
-      WHERE title IN ('admin', 'Team Manager')
+      WHERE title IN ('admin', 'Team Manager','superadmin','Club President')
     `);
 
     const adminRoleIds = new Set(roles.map((r: any) => r.id));
@@ -1642,7 +1641,14 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
           (r) => String(r.user_id) === String(u.id)
         );
 
-        const isAdmin = adminRoleIds.has(teamUser?.role_id);
+        const roleIds = String(teamUser?.team_role_ids || "")
+          .split(",")
+          .map((id: string) => Number(id.trim()))
+          .filter(Boolean);
+
+        const isAdmin = roleIds.some((id: number) =>
+          adminRoleIds.has(id)
+        );
 
         return {
           userId: String(u.id),
