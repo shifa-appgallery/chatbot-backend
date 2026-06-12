@@ -7,7 +7,6 @@ import UserPreference from "../models/UserPreference";
 import { AuthenticatedSocket } from "../types/AuthenticatedSocket";
 import { sendNotification } from "../utils/sendPush";
 import mongoose from "mongoose";
-import { PROFILE_URL } from "../constant/url";
 import { MESSAGE_TYPES } from "../constant/enum";
 
 interface SendMessagePayload {
@@ -123,7 +122,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             "http"
           )
             ? senderParticipant.profile_picture
-            : `${PROFILE_URL}${senderParticipant.profile_picture}`
+            : `${process.env.PROFILE_URL}${senderParticipant.profile_picture}`
           : null;
 
       // =========================
@@ -1419,7 +1418,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           userProfile: p.profile_picture
             ? p.profile_picture.startsWith("http")
               ? p.profile_picture
-              : `${PROFILE_URL}${p.profile_picture}`
+              : `${process.env.ROFILE_URL}${p.profile_picture}`
             : null
         });
       });
@@ -1583,7 +1582,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                         "http"
                       )
                         ? voteUser.profile_picture
-                        : `${PROFILE_URL}${voteUser.profile_picture}`
+                        : `${process.env.PROFILE_URL}${voteUser.profile_picture}`
                       : null
                 };
               }

@@ -9,7 +9,6 @@ import { User } from "../models/mysql/User";
 import UserDevice from "../models/UserDevice";
 import { TeamUsers } from "../models/mysql/TeamUsers";
 import { getSequelize } from "../config/mysql";
-import { PROFILE_URL, TEAM_LOGO_URL } from "../constant/url";
 import mongoose from "mongoose";
 import { MESSAGE_TYPES } from "../constant/enum";
 
@@ -94,7 +93,7 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
         fullName: `${p.first_Name} ${p.last_name}`,
         profile_picture: p.profile_picture ? p.profile_picture.startsWith("http")
           ? p.profile_picture
-          : `${PROFILE_URL}${p.profile_picture}`
+          : `${process.env.PROFILE_URL}${p.profile_picture}`
           : null,
         isOnline: false,
         unreadCount: p.unreadCount || 0,
@@ -149,7 +148,7 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
         last_name = currentUser.last_name;
 
         profile_picture = currentUser.profile_picture
-          ? PROFILE_URL + currentUser.profile_picture
+          ? process.env.PROFILE_URL + currentUser.profile_picture
           : "";
       } else {
         const user = userMap[id];
@@ -158,7 +157,7 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
         last_name = user?.last_name || "";
 
         profile_picture = user?.profile_picture
-          ? PROFILE_URL + user.profile_picture
+          ? process.env.PROFILE_URL + user.profile_picture
           : "";
       }
 
@@ -359,7 +358,7 @@ export const sendMessage = async (
           "http"
         )
           ? user.profile_picture
-          : `${PROFILE_URL}${user.profile_picture}`
+          : `${process.env.PROFILE_URL}${user.profile_picture}`
         : null,
 
       // NEW FIELD
@@ -523,7 +522,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
           userProfile: reactionUser?.profile_picture
             ? reactionUser.profile_picture.startsWith("http")
               ? reactionUser.profile_picture
-              : `${PROFILE_URL}${reactionUser.profile_picture}`
+              : `${process.env.PROFILE_URL}${reactionUser.profile_picture}`
             : null
         };
       });
@@ -545,7 +544,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
                 userProfile: voteUser?.profile_picture
                   ? voteUser.profile_picture.startsWith("http")
                     ? voteUser.profile_picture
-                    : `${PROFILE_URL}${voteUser.profile_picture}`
+                    : `${process.env.PROFILE_URL}${voteUser.profile_picture}`
                   : null
               };
             })
@@ -563,13 +562,13 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
           if (msg.senderProfile) {
             return msg.senderProfile.startsWith("http")
               ? msg.senderProfile
-              : `${PROFILE_URL}${msg.senderProfile}`;
+              : `${process.env.PROFILE_URL}${msg.senderProfile}`;
           }
 
           if (sender?.profile_picture) {
             return sender.profile_picture.startsWith("http")
               ? sender.profile_picture
-              : `${PROFILE_URL}${sender.profile_picture}`;
+              : `${process.env.PROFILE_URL}${sender.profile_picture}`;
           }
 
           return null;
@@ -845,7 +844,7 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
         first_Name: user.first_name,
         last_name: user.last_name,
         profile_picture: user.profile_picture
-          ? PROFILE_URL + user.profile_picture
+          ? process.env.PROFILE_URL + user.profile_picture
           : "",
         role: "member",
         joinedAt: new Date()
@@ -1609,7 +1608,7 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
 
     for (const t of teams) {
       if (t.logo) {
-        teamLogoMap[String(t.id)] = TEAM_LOGO_URL + t.logo;
+        teamLogoMap[String(t.id)] = process.env.TEAM_LOGO_URL + t.logo;
       }
       if (t.name) {
         teamNameMap[String(t.id)] = t.name;
@@ -1655,7 +1654,7 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
           first_Name: u.first_name || "",
           last_name: u.last_name || "",
           profile_picture: u.profile_picture
-            ? PROFILE_URL + u.profile_picture //  FIXED
+            ? process.env.PROFILE_URL + u.profile_picture //  FIXED
             : "",
           role: isAdmin ? "admin" : "member",
           joinedAt: new Date()
@@ -1771,7 +1770,7 @@ export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
     const roomObj = updatedRoom.toObject();
 
     if (roomObj.groupImage) {
-      roomObj.groupImage = TEAM_LOGO_URL + roomObj.groupImage;
+      roomObj.groupImage = process.env.TEAM_LOGO_URL + roomObj.groupImage;
     }
 
     return res.json({
@@ -2011,7 +2010,7 @@ export const createTeamSupportChat = async (
         profile_picture: currentUser.profile_picture
           ? currentUser.profile_picture.startsWith("http")
             ? currentUser.profile_picture
-            : `${PROFILE_URL}${currentUser.profile_picture}`
+            : `${process.env.PROFILE_URL}${currentUser.profile_picture}`
           : null,
         role: "member",
         joinedAt: new Date()
@@ -2029,7 +2028,7 @@ export const createTeamSupportChat = async (
         profile_picture: manager.profile_picture
           ? manager.profile_picture.startsWith("http")
             ? manager.profile_picture
-            : `${PROFILE_URL}${manager.profile_picture}`
+            : `${process.env.PROFILE_URL}${manager.profile_picture}`
           : null,
         role: "admin",
         joinedAt: new Date()
@@ -2044,7 +2043,7 @@ export const createTeamSupportChat = async (
       name: team.name,
       isGroup: true,
       teamId: String(teamId),
-      groupImage: team.logo ? TEAM_LOGO_URL + team.logo : "",
+      groupImage: team.logo ? process.env.TEAM_LOGO_URL + team.logo : "",
       chatRequestStatus: "accepted",
 
       participants,
@@ -2218,7 +2217,7 @@ export const getUserRequests = async (
       name: user.name || "",
 
       logo: user.logo
-        ? `${PROFILE_URL}${user.logo}`
+        ? `${process.env.PROFILE_URL}${user.logo}`
         : null,
 
       requestStatus:

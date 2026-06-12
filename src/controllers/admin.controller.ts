@@ -6,7 +6,6 @@ import { User } from "../models/mysql/User";
 import ChatRooms from "../models/ChatRooms";
 import UserPreference from "../models/UserPreference";
 import { Response } from "express";
-import { PROFILE_URL, TEAM_LOGO_URL } from "../constant/url";
 
 
 export const createGroupByRole = async (req: AuthRequest, res: Response) => {
@@ -88,7 +87,7 @@ export const createGroupByRole = async (req: AuthRequest, res: Response) => {
     }
 
     const groupName = team.name;
-    const groupImage = team.logo ? TEAM_LOGO_URL + team.logo : null;
+    const groupImage = team.logo ? process.env.TEAM_LOGO_URL + team.logo : null;
 
     const teamUsers = await TeamUsers.findAll({
       where: {
@@ -113,7 +112,7 @@ export const createGroupByRole = async (req: AuthRequest, res: Response) => {
       first_Name: u.first_name || "",
       last_name: u.last_name || "",
       profile_picture: u.profile_picture
-        ? PROFILE_URL + u.profile_picture
+        ? process.env.PROFILE_URL + u.profile_picture
         : "",
       role: u.id === userId ? "admin" : "member",
       chatRequestStatus: "accepted",
@@ -253,7 +252,7 @@ export const addMembersToGroup = async (req: AuthRequest, res: Response) => {
       first_Name: u.first_name || "",
       last_name: u.last_name || "",
       profile_picture: u.profile_picture
-        ? PROFILE_URL + u.profile_picture
+        ? process.env.PROFILE_URL + u.profile_picture
         : "",
       role: "member",
       joinedAt: new Date()
