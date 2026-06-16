@@ -20,6 +20,11 @@ export const sendNotification = async (
           body,
         },
 
+        data: {
+          roomId: roomId || "",
+          type: "chat",
+        },
+
         android: {
           notification: {
             tag: roomId || Date.now().toString(),
