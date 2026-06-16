@@ -25,6 +25,12 @@ export const sendNotification = async (
           type: "chat",
         },
 
+        webpush: {
+          fcmOptions: {
+            link: `${process.env.FRONTEND_URL}?roomId=${roomId}`,
+          },
+        },
+
         android: {
           notification: {
             tag: roomId || Date.now().toString(),
