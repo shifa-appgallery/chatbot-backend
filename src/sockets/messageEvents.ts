@@ -55,16 +55,38 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     }).select("participants lastMessage");
 
     rooms.forEach(room => {
+
       const userParticipant = room.participants.find(
         (p: any) => String(p.userId) === userId
       );
 
+      const lastSender = room.participants.find(
+        (p: any) =>
+          String(p.userId) === String(room.lastMessage?.senderId)
+      );
+
+      const senderProfile = lastSender?.profile_picture
+        ? lastSender.profile_picture.startsWith("http")
+          ? lastSender.profile_picture
+          : `${process.env.PROFILE_URL}${lastSender.profile_picture}`
+        : null;
+
       socket.emit("room_updated", {
         roomId: room._id,
+
+        senderName: lastSender
+          ? `${lastSender.first_Name} ${lastSender.last_name || ""}`.trim()
+          : "",
+
+        senderProfile,
+
         unreadCount: userParticipant?.unreadCount || 0,
+
         lastMessage: room.lastMessage?.text || "",
+
         lastMessageDate: room.lastMessage?.createdAt || null
       });
+
     });
   })();
 
@@ -1295,7 +1317,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 updatedRoom?.lastMessage?.createdAt ||
                 null
             };
-
+            console.log("payload", payload)
             presence.socketIds.forEach(
               (socketId: string) => {
 
