@@ -1281,6 +1281,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               roomId:
                 room._id,
 
+              senderName:
+                updatedMessage.senderName,
+              senderProfile: updatedMessage.senderProfile,
+
               unreadCount:
                 userParticipant?.unreadCount || 0,
 
