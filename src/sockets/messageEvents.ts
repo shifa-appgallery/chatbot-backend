@@ -483,6 +483,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         "room_updated",
         {
           roomId,
+
+          senderName,
+          senderProfile,
+
           unreadCount: 0,
 
           lastMessage:
@@ -1629,7 +1633,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       room.chatRequestStatus = "accepted";
       await room.save();
 
-      console.log("updatedroom",room)
+      console.log("updatedroom", room)
 
       console.log("EMITTING ACCEPTED");
 
@@ -1674,7 +1678,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       room.chatRequestStatus = "rejected";
       await room.save();
-      console.log("updatedroom",room)
+      console.log("updatedroom", room)
 
       console.log("EMITTING REJECTED");
 

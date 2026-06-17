@@ -2247,3 +2247,59 @@ export const getUserRequests = async (
 
   }
 };
+
+export const deleteGroup = async (req: AuthRequest, res: Response) => {
+  try {
+    const { roomId } = req.params;
+    const userId = String(req.user!.id);
+
+    const room = await ChatRoom.findById(roomId);
+
+    if (!room) {
+      return res.status(404).json({
+        status: false,
+        message: "Chat room not found",
+      });
+    }
+
+    if (!room.isGroup) {
+      return res.status(400).json({
+        status: false,
+        message: "This is not a group chat",
+      });
+    }
+
+    const participant = room.participants.find(
+      (p) => p.userId === userId
+    );
+
+    if (!participant) {
+      return res.status(403).json({
+        status: false,
+        message: "You are not part of this group",
+      });
+    }
+
+    if (participant.role !== "admin") {
+      return res.status(403).json({
+        status: false,
+        message: "Only admin can delete this group",
+      });
+    }
+
+    await Message.deleteMany({ roomId });
+
+    await ChatRoom.findByIdAndDelete(roomId);
+
+    return res.json({
+      status: true,
+      message: "Group deleted successfully",
+    });
+  } catch (err) {
+    console.error("deleteGroup error:", err);
+    return res.status(500).json({
+      status: false,
+      message: "Internal server error",
+    });
+  }
+};
