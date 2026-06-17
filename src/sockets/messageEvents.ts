@@ -440,8 +440,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           );
 
         const payload = {
+
           roomId,
 
+          senderName,
+          senderProfile,
           unreadCount:
             userParticipant?.unreadCount || 0,
 
