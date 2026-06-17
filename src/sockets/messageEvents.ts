@@ -847,596 +847,594 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     }
   });
 
-  socket.on(
-    "edit_message",
-    async ({
-      messageId,
-      message,
-      mediaUrl,
-      mentions = []
-    }: {
-      messageId: string;
-      message: string;
-      mediaUrl?: string;
-      mentions?: {
-        userId: string;
-        userName: string;
-        startIndex: number;
-        endIndex: number;
-      }[];
-    }) => {
-
-      try {
-
-        const senderId =
-          String(socket.user?._id);
-
-        // =========================
-        // FIND EXISTING MESSAGE
-        // =========================
-
-        const existingMessage: any =
-          await Messages.findById(
-            messageId
-          );
-
-        if (!existingMessage) {
-
-          return socket.emit(
-            "message_error",
-            {
-              message:
-                "Message not found"
-            }
-          );
-        }
-
-        // =========================
-        // ONLY SENDER CAN EDIT
-        // =========================
-
-        if (
-          String(
-            existingMessage.senderId
-          ) !== senderId
-        ) {
-
-          return socket.emit(
-            "message_error",
-            {
-              message:
-                "Unauthorized"
-            }
-          );
-        }
-
-        // =========================
-        // FIND ROOM
-        // =========================
-
-        const room: any =
-          await ChatRooms.findById(
-            existingMessage.roomId
-          );
-
-        if (!room) {
-
-          return socket.emit(
-            "message_error",
-            {
-              message:
-                "Room not found"
-            }
-          );
-        }
-
-        const oldMessage =
-          existingMessage.message;
-
-        // =========================
-        // MENTION VALIDATION
-        // =========================
-
-        const safeMentions =
-          Array.isArray(mentions)
-
-            ? mentions
-              .map((m: any) => ({
-
-                userId:
-                  String(m.userId),
-
-                // SUPPORT BOTH
-                userName:
-                  m.userName ||
-                  m.username,
-
-                startIndex:
-                  m.startIndex,
-
-                endIndex:
-                  m.endIndex
-              }))
-
-              .filter((m: any) => {
-
-                // VALID TYPES
-                if (
-
-                  typeof m.userId !==
-                  "string" ||
-
-                  typeof m.userName !==
-                  "string" ||
-
-                  typeof m.startIndex !==
-                  "number" ||
-
-                  typeof m.endIndex !==
-                  "number"
-
-                ) {
-
-                  return false;
-                }
-
-                // VALID INDEXES
-                if (
-
-                  m.startIndex < 0 ||
-
-                  m.endIndex >
-                  message.length ||
-
-                  m.startIndex >=
-                  m.endIndex
-
-                ) {
-
-                  return false;
-                }
-
-                // USER EXISTS IN ROOM
-                const isParticipant =
-                  room.participants.some(
-                    (p: any) =>
-                      String(p.userId) ===
-                      String(m.userId)
-                  );
-
-                if (!isParticipant) {
-
-                  return false;
-                }
-
-                // VALID TEXT MATCH
-                const mentionText =
-                  message.substring(
-                    m.startIndex,
-                    m.endIndex
-                  );
-
-                const normalizedMention =
-                  mentionText
-                    .replace("@", "")
-                    .replace(/\s+/g, " ")
-                    .trim();
-
-                const normalizedUserName =
-                  m.userName
-                    .replace(/\s+/g, " ")
-                    .trim();
-
-                if (
-                  normalizedMention !==
-                  normalizedUserName
-                ) {
-
-                  console.warn(
-                    "Mention index mismatch",
-                    {
-                      mentionText,
-                      normalizedMention,
-                      normalizedUserName,
-                      mention: m
-                    }
-                  );
-                }
-
-                return true;
-              })
-
-            : [];
-
-        // =========================
-        // REMOVE DUPLICATES
-        // =========================
-
-        const uniqueMentions =
-          safeMentions.filter(
-
-            (
-              mention: any,
-              index: number,
-              self: any[]
-            ) =>
-
-              index ===
-              self.findIndex(
-                (m: any) =>
-
-                  String(m.userId) ===
-                  String(mention.userId) &&
-
-                  m.startIndex ===
-                  mention.startIndex &&
-
-                  m.endIndex ===
-                  mention.endIndex
-              )
-          );
-
-        // =========================
-        // UPDATE MESSAGE
-        // =========================
-
-        const updatedMessage: any =
-          await Messages.findByIdAndUpdate(
-
-            messageId,
-
-            {
-              $set: {
-
-                message,
-
-                mentions:
-                  uniqueMentions,
-
-                mediaUrl:
-                  mediaUrl ??
-                  existingMessage.mediaUrl,
-
-                isEdited: true
-              }
-            },
-
-            {
-              new: true
-            }
-          );
-
-        if (!updatedMessage) {
-          return;
-        }
-
-        // =========================
-        // DISPLAY MESSAGE
-        // =========================
-
-        const displayMessage =
-
-          updatedMessage.messageType ===
-            MESSAGE_TYPES.Image
-
-            ? "Photo"
-
-            : updatedMessage.messageType ===
-              MESSAGE_TYPES.Video
-
-              ? "Video"
-
-              : updatedMessage.messageType ===
-                MESSAGE_TYPES.POLL
-
-                ? (
-                  updatedMessage.poll?.question ||
-                  "Poll"
-                )
-
-                : updatedMessage.message;
-
-        // =========================
-        // UPDATE LAST MESSAGE
-        // =========================
-
-        const lastMsg =
-          room.lastMessage;
-
-        const isLastMessage =
-
-          lastMsg &&
-
-          String(lastMsg.senderId) ===
-          String(senderId) &&
-
-          lastMsg.text ===
-          oldMessage;
-
-        if (isLastMessage) {
-
-          await ChatRooms.findByIdAndUpdate(
-            room._id,
-            {
-              lastMessage: {
-
-                text:
-                  displayMessage,
-
-                senderId,
-
-                createdAt:
-                  updatedMessage.createdAt
-              }
-            }
-          );
-        }
-
-        // =========================
-        // FORMATTED MESSAGE
-        // =========================
-
-        const formattedMessage = {
-
-          messageId:
-            updatedMessage._id,
-
-          roomId:
-            updatedMessage.roomId,
-
-          senderId:
-            updatedMessage.senderId,
-
-          senderName:
-            updatedMessage.senderName,
-
-          message:
-            updatedMessage.message,
-
-          messageType:
-            updatedMessage.messageType,
-
-          mediaUrl:
-            updatedMessage.mediaUrl,
-
-          mentions:
-            updatedMessage.mentions || [],
-
-          isEdited:
-            updatedMessage.isEdited,
-
-          updatedAt:
-            updatedMessage.updatedAt,
-
-          createdAt:
-            updatedMessage.createdAt,
-
-          displayMessage
-        };
-
-        // =========================
-        // ROOM SOCKET EVENT
-        // =========================
-
-        io.to(
-          room._id.toString()
-        ).emit(
-          "message_edited",
-          formattedMessage
+  socket.on("edit_message", async ({
+    messageId,
+    message,
+    mediaUrl,
+    mentions = []
+  }: {
+    messageId: string;
+    message: string;
+    mediaUrl?: string;
+    mentions?: {
+      userId: string;
+      userName: string;
+      startIndex: number;
+      endIndex: number;
+    }[];
+  }) => {
+
+    try {
+
+      const senderId =
+        String(socket.user?._id);
+
+      // =========================
+      // FIND EXISTING MESSAGE
+      // =========================
+
+      const existingMessage: any =
+        await Messages.findById(
+          messageId
         );
 
-        // =========================
-        // ACK TO SENDER
-        // =========================
+      if (!existingMessage) {
 
-        socket.emit(
-          "message_edit_success",
-          formattedMessage
-        );
-
-        // =========================
-        // UPDATED ROOM
-        // =========================
-
-        const updatedRoom: any =
-          await ChatRooms.findById(
-            room._id
-          ).select(
-            "participants lastMessage"
-          );
-
-        // =========================
-        // ROOM UPDATE EVENTS
-        // =========================
-
-        const allUserIds =
-          room.participants.map(
-            (p: any) =>
-              String(p.userId)
-          );
-
-        const presenceList =
-          await UserPresence.find({
-            userId: {
-              $in: allUserIds
-            }
-          });
-
-        const presenceMap =
-          new Map(
-            presenceList.map(p => [
-              String(p.userId),
-              p
-            ])
-          );
-
-        for (
-          const participant
-          of room.participants
-        ) {
-
-          const userId =
-            String(
-              participant.userId
-            );
-
-          const presence: any =
-            presenceMap.get(userId);
-
-          if (
-            presence &&
-            Array.isArray(
-              presence.socketIds
-            ) &&
-            presence.socketIds.length > 0
-          ) {
-
-            const userParticipant =
-              updatedRoom?.participants?.find(
-                (p: any) =>
-                  String(p.userId) ===
-                  userId
-              );
-
-            const payload = {
-
-              roomId:
-                room._id,
-
-              senderName:
-                updatedMessage.senderName,
-              senderProfile: updatedMessage.senderProfile,
-
-              unreadCount:
-                userParticipant?.unreadCount || 0,
-
-              lastMessage:
-                updatedRoom?.lastMessage?.text || "",
-
-              lastMessageDate:
-                updatedRoom?.lastMessage?.createdAt ||
-                null
-            };
-            console.log("payload", payload)
-            presence.socketIds.forEach(
-              (socketId: string) => {
-
-                io.to(socketId).emit(
-                  "room_updated",
-                  payload
-                );
-              }
-            );
-          }
-        }
-
-        // =========================
-        // MENTION NOTIFICATIONS
-        // =========================
-
-        if (
-          uniqueMentions.length > 0
-        ) {
-
-          const mentionedUserIds =
-            uniqueMentions.map(
-              (m: any) =>
-                String(m.userId)
-            );
-
-          const mentionPresenceList =
-            await UserPresence.find({
-              userId: {
-                $in:
-                  mentionedUserIds
-              }
-            });
-
-          mentionPresenceList.forEach(
-            (presence: any) => {
-
-              // DON'T SEND TO SENDER
-              if (
-                String(
-                  presence.userId
-                ) === senderId
-              ) {
-                return;
-              }
-
-              // DON'T SEND IF USER IS ACTIVE IN SAME ROOM
-              if (
-                String(
-                  presence.activeRoomId
-                ) ===
-                String(room._id)
-              ) {
-                return;
-              }
-
-              const mentionedUser =
-                updatedRoom?.participants?.find(
-                  (p: any) =>
-                    String(p.userId) ===
-                    String(
-                      presence.userId
-                    )
-                );
-
-              const displayMessage =
-                `${existingMessage.senderName} mentioned you in an edited message: ${message}`;
-
-              if (
-                Array.isArray(
-                  presence.socketIds
-                )
-              ) {
-
-                presence.socketIds.forEach(
-                  (
-                    socketId: string
-                  ) => {
-
-                    io.to(socketId).emit(
-                      "new_message_notification",
-                      {
-                        roomId:
-                          room._id,
-
-                        senderId,
-
-                        senderName:
-                          existingMessage.senderName,
-
-                        displayMessage,
-
-                        unreadCount:
-                          mentionedUser?.unreadCount || 0
-                      }
-                    );
-                  }
-                );
-              }
-            }
-          );
-        }
-
-      } catch (err) {
-
-        console.error(
-          "edit_message error:",
-          err
-        );
-
-        socket.emit(
+        return socket.emit(
           "message_error",
           {
             message:
-              "Something went wrong"
+              "Message not found"
           }
         );
       }
+
+      // =========================
+      // ONLY SENDER CAN EDIT
+      // =========================
+
+      if (
+        String(
+          existingMessage.senderId
+        ) !== senderId
+      ) {
+
+        return socket.emit(
+          "message_error",
+          {
+            message:
+              "Unauthorized"
+          }
+        );
+      }
+
+      // =========================
+      // FIND ROOM
+      // =========================
+
+      const room: any =
+        await ChatRooms.findById(
+          existingMessage.roomId
+        );
+
+      if (!room) {
+
+        return socket.emit(
+          "message_error",
+          {
+            message:
+              "Room not found"
+          }
+        );
+      }
+
+      const oldMessage =
+        existingMessage.message;
+
+      // =========================
+      // MENTION VALIDATION
+      // =========================
+
+      const safeMentions =
+        Array.isArray(mentions)
+
+          ? mentions
+            .map((m: any) => ({
+
+              userId:
+                String(m.userId),
+
+              // SUPPORT BOTH
+              userName:
+                m.userName ||
+                m.username,
+
+              startIndex:
+                m.startIndex,
+
+              endIndex:
+                m.endIndex
+            }))
+
+            .filter((m: any) => {
+
+              // VALID TYPES
+              if (
+
+                typeof m.userId !==
+                "string" ||
+
+                typeof m.userName !==
+                "string" ||
+
+                typeof m.startIndex !==
+                "number" ||
+
+                typeof m.endIndex !==
+                "number"
+
+              ) {
+
+                return false;
+              }
+
+              // VALID INDEXES
+              if (
+
+                m.startIndex < 0 ||
+
+                m.endIndex >
+                message.length ||
+
+                m.startIndex >=
+                m.endIndex
+
+              ) {
+
+                return false;
+              }
+
+              // USER EXISTS IN ROOM
+              const isParticipant =
+                room.participants.some(
+                  (p: any) =>
+                    String(p.userId) ===
+                    String(m.userId)
+                );
+
+              if (!isParticipant) {
+
+                return false;
+              }
+
+              // VALID TEXT MATCH
+              const mentionText =
+                message.substring(
+                  m.startIndex,
+                  m.endIndex
+                );
+
+              const normalizedMention =
+                mentionText
+                  .replace("@", "")
+                  .replace(/\s+/g, " ")
+                  .trim();
+
+              const normalizedUserName =
+                m.userName
+                  .replace(/\s+/g, " ")
+                  .trim();
+
+              if (
+                normalizedMention !==
+                normalizedUserName
+              ) {
+
+                console.warn(
+                  "Mention index mismatch",
+                  {
+                    mentionText,
+                    normalizedMention,
+                    normalizedUserName,
+                    mention: m
+                  }
+                );
+              }
+
+              return true;
+            })
+
+          : [];
+
+      // =========================
+      // REMOVE DUPLICATES
+      // =========================
+
+      const uniqueMentions =
+        safeMentions.filter(
+
+          (
+            mention: any,
+            index: number,
+            self: any[]
+          ) =>
+
+            index ===
+            self.findIndex(
+              (m: any) =>
+
+                String(m.userId) ===
+                String(mention.userId) &&
+
+                m.startIndex ===
+                mention.startIndex &&
+
+                m.endIndex ===
+                mention.endIndex
+            )
+        );
+
+      // =========================
+      // UPDATE MESSAGE
+      // =========================
+
+      const updatedMessage: any =
+        await Messages.findByIdAndUpdate(
+
+          messageId,
+
+          {
+            $set: {
+
+              message,
+
+              mentions:
+                uniqueMentions,
+
+              mediaUrl:
+                mediaUrl ??
+                existingMessage.mediaUrl,
+
+              isEdited: true
+            }
+          },
+
+          {
+            new: true
+          }
+        );
+
+      if (!updatedMessage) {
+        return;
+      }
+
+      // =========================
+      // DISPLAY MESSAGE
+      // =========================
+
+      const displayMessage =
+
+        updatedMessage.messageType ===
+          MESSAGE_TYPES.Image
+
+          ? "Photo"
+
+          : updatedMessage.messageType ===
+            MESSAGE_TYPES.Video
+
+            ? "Video"
+
+            : updatedMessage.messageType ===
+              MESSAGE_TYPES.POLL
+
+              ? (
+                updatedMessage.poll?.question ||
+                "Poll"
+              )
+
+              : updatedMessage.message;
+
+      // =========================
+      // UPDATE LAST MESSAGE
+      // =========================
+
+      const lastMsg =
+        room.lastMessage;
+
+      const isLastMessage =
+
+        lastMsg &&
+
+        String(lastMsg.senderId) ===
+        String(senderId) &&
+
+        lastMsg.text ===
+        oldMessage;
+
+      if (isLastMessage) {
+
+        await ChatRooms.findByIdAndUpdate(
+          room._id,
+          {
+            lastMessage: {
+
+              text:
+                displayMessage,
+
+              senderId,
+
+              createdAt:
+                updatedMessage.createdAt
+            }
+          }
+        );
+      }
+
+      // =========================
+      // FORMATTED MESSAGE
+      // =========================
+
+      const formattedMessage = {
+
+        messageId:
+          updatedMessage._id,
+
+        roomId:
+          updatedMessage.roomId,
+
+        senderId:
+          updatedMessage.senderId,
+
+        senderName:
+          updatedMessage.senderName,
+
+        message:
+          updatedMessage.message,
+
+        messageType:
+          updatedMessage.messageType,
+
+        mediaUrl:
+          updatedMessage.mediaUrl,
+
+        mentions:
+          updatedMessage.mentions || [],
+
+        isEdited:
+          updatedMessage.isEdited,
+
+        updatedAt:
+          updatedMessage.updatedAt,
+
+        createdAt:
+          updatedMessage.createdAt,
+
+        displayMessage
+      };
+
+      // =========================
+      // ROOM SOCKET EVENT
+      // =========================
+
+      io.to(
+        room._id.toString()
+      ).emit(
+        "message_edited",
+        formattedMessage
+      );
+
+      // =========================
+      // ACK TO SENDER
+      // =========================
+
+      socket.emit(
+        "message_edit_success",
+        formattedMessage
+      );
+
+      // =========================
+      // UPDATED ROOM
+      // =========================
+
+      const updatedRoom: any =
+        await ChatRooms.findById(
+          room._id
+        ).select(
+          "participants lastMessage"
+        );
+
+      // =========================
+      // ROOM UPDATE EVENTS
+      // =========================
+
+      const allUserIds =
+        room.participants.map(
+          (p: any) =>
+            String(p.userId)
+        );
+
+      const presenceList =
+        await UserPresence.find({
+          userId: {
+            $in: allUserIds
+          }
+        });
+
+      const presenceMap =
+        new Map(
+          presenceList.map(p => [
+            String(p.userId),
+            p
+          ])
+        );
+
+      for (
+        const participant
+        of room.participants
+      ) {
+
+        const userId =
+          String(
+            participant.userId
+          );
+
+        const presence: any =
+          presenceMap.get(userId);
+
+        if (
+          presence &&
+          Array.isArray(
+            presence.socketIds
+          ) &&
+          presence.socketIds.length > 0
+        ) {
+
+          const userParticipant =
+            updatedRoom?.participants?.find(
+              (p: any) =>
+                String(p.userId) ===
+                userId
+            );
+
+          const payload = {
+
+            roomId:
+              room._id,
+
+            senderName:
+              updatedMessage.senderName,
+            senderProfile: updatedMessage.senderProfile,
+
+            unreadCount:
+              userParticipant?.unreadCount || 0,
+
+            lastMessage:
+              updatedRoom?.lastMessage?.text || "",
+
+            lastMessageDate:
+              updatedRoom?.lastMessage?.createdAt ||
+              null
+          };
+          console.log("payload", payload)
+          presence.socketIds.forEach(
+            (socketId: string) => {
+
+              io.to(socketId).emit(
+                "room_updated",
+                payload
+              );
+            }
+          );
+        }
+      }
+
+      // =========================
+      // MENTION NOTIFICATIONS
+      // =========================
+
+      if (
+        uniqueMentions.length > 0
+      ) {
+
+        const mentionedUserIds =
+          uniqueMentions.map(
+            (m: any) =>
+              String(m.userId)
+          );
+
+        const mentionPresenceList =
+          await UserPresence.find({
+            userId: {
+              $in:
+                mentionedUserIds
+            }
+          });
+
+        mentionPresenceList.forEach(
+          (presence: any) => {
+
+            // DON'T SEND TO SENDER
+            if (
+              String(
+                presence.userId
+              ) === senderId
+            ) {
+              return;
+            }
+
+            // DON'T SEND IF USER IS ACTIVE IN SAME ROOM
+            if (
+              String(
+                presence.activeRoomId
+              ) ===
+              String(room._id)
+            ) {
+              return;
+            }
+
+            const mentionedUser =
+              updatedRoom?.participants?.find(
+                (p: any) =>
+                  String(p.userId) ===
+                  String(
+                    presence.userId
+                  )
+              );
+
+            const displayMessage =
+              `${existingMessage.senderName} mentioned you in an edited message: ${message}`;
+
+            if (
+              Array.isArray(
+                presence.socketIds
+              )
+            ) {
+
+              presence.socketIds.forEach(
+                (
+                  socketId: string
+                ) => {
+
+                  io.to(socketId).emit(
+                    "new_message_notification",
+                    {
+                      roomId:
+                        room._id,
+
+                      senderId,
+
+                      senderName:
+                        existingMessage.senderName,
+
+                      displayMessage,
+
+                      unreadCount:
+                        mentionedUser?.unreadCount || 0
+                    }
+                  );
+                }
+              );
+            }
+          }
+        );
+      }
+
+    } catch (err) {
+
+      console.error(
+        "edit_message error:",
+        err
+      );
+
+      socket.emit(
+        "message_error",
+        {
+          message:
+            "Something went wrong"
+        }
+      );
     }
+  }
   );
 
   socket.on("react_message", async ({ messageId, reaction, reactionUrl }: {

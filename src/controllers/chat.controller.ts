@@ -11,6 +11,7 @@ import { TeamUsers } from "../models/mysql/TeamUsers";
 import { getSequelize } from "../config/mysql";
 import mongoose from "mongoose";
 import { MESSAGE_TYPES } from "../constant/enum";
+import Messages from "../models/Messages";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -1719,6 +1720,8 @@ export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId, name, groupImage } = req.body;
 
+    const systemMessages: string[] = [];
+
     const currentUserId = String(req.user!.id);
 
     const room: any = await ChatRoom.findById(roomId);
@@ -1735,30 +1738,44 @@ export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const isParticipant = room.participants.some(
+    const currentUser = room.participants.find(
       (p: any) => p.userId === currentUserId
     );
 
-    if (!isParticipant) {
+    if (!currentUser) {
       return res.status(403).json({
         message: "You are not part of this group"
       });
     }
 
+    const userName =
+      `${currentUser.first_Name} ${currentUser.last_name || ""}`.trim();
+
     const updateData: any = {};
 
-    if (name !== undefined) {
+    if (name !== undefined && name !== room.name) {
       updateData.name = name;
+
+      systemMessages.push(
+        `${userName} changed the group name to "${name}"`
+      );
     }
 
-    if (groupImage !== undefined) {
+    if (
+      groupImage !== undefined &&
+      groupImage !== room.groupImage
+    ) {
       updateData.groupImage = groupImage;
+
+      systemMessages.push(
+        `${userName} changed the group icon`
+      );
     }
 
     const updatedRoom = await ChatRoom.findByIdAndUpdate(
       roomId,
       { $set: updateData },
-      { returnDocument: "after" }
+      { new: true }
     );
 
     if (!updatedRoom) {
@@ -1767,10 +1784,39 @@ export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Create system messages
+    let latestSystemMessage = null;
+
+    for (const msg of systemMessages) {
+      latestSystemMessage = await Messages.create({
+        roomId,
+        senderId: currentUserId,
+        senderName: userName,
+        senderProfile: currentUser.profile_picture,
+        message: msg,
+        messageType: "system"
+      });
+    }
+
+    // Update room last message
+    if (latestSystemMessage) {
+      await ChatRoom.findByIdAndUpdate(
+        roomId,
+        {
+          lastMessage: {
+            text: latestSystemMessage.message,
+            senderId: currentUserId,
+            createdAt: new Date()
+          }
+        }
+      );
+    }
+
     const roomObj = updatedRoom.toObject();
 
     if (roomObj.groupImage) {
-      roomObj.groupImage = process.env.TEAM_LOGO_URL + roomObj.groupImage;
+      roomObj.groupImage =
+        process.env.TEAM_LOGO_URL + roomObj.groupImage;
     }
 
     return res.json({
@@ -1780,6 +1826,7 @@ export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
 
   } catch (err) {
     console.error("updateGroupDetails error:", err);
+
     return res.status(500).json({
       message: "Internal server error"
     });

@@ -32,9 +32,15 @@ export const sendNotification = async (
         },
 
         android: {
-          notification: {
-            tag: roomId || Date.now().toString(),
-          },
+          // notification: {
+          //   tag: roomId || Date.now().toString(),
+          // },
+          data: {
+            title: title,
+            body: body,
+            roomId: roomId || "",
+            type: "chat"
+          }
         },
 
         apns: {
