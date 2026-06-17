@@ -498,6 +498,16 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         }
       );
 
+      console.log("Sending room_updated to sender");
+      console.log({
+        roomId,
+        senderName,
+        senderProfile,
+        unreadCount: 0,
+        lastMessage: updatedRoom?.lastMessage?.text,
+        lastMessageDate: updatedRoom?.lastMessage?.createdAt
+      })
+
       socket.emit(
         "message_sent",
         formattedMsg
