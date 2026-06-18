@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { MESSAGE_TYPES } from "../constant/enum";
 
 const messageSchema = new mongoose.Schema({
   roomId: {
@@ -16,7 +17,7 @@ const messageSchema = new mongoose.Schema({
 
   messageType: {
     type: String,
-    enum: ["text", "image", "video", "file", "poll"],
+    enum: Object.values(MESSAGE_TYPES),
     default: "text"
   },
 

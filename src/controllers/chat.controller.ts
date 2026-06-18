@@ -796,15 +796,24 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
       (p: any) =>
         String(p.userId?._id || p.userId) === currentUserId
     );
+
     if (!currentUser || currentUser.role !== "admin") {
       return res.status(403).json({
         message: "Only admin can add participants"
       });
     }
 
+    const adminName =
+      `${currentUser.first_Name} ${currentUser.last_name || ""}`.trim();
+
     const users: any[] = await User.findAll({
       where: { id: userIds },
-      attributes: ["id", "first_name", "last_name", "profile_picture"]
+      attributes: [
+        "id",
+        "first_name",
+        "last_name",
+        "profile_picture"
+      ]
     });
 
     if (!users.length) {
@@ -822,9 +831,7 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
     const alreadyExists: string[] = [];
     const processedIds = new Set<string>();
 
-    const newParticipants = [];
-
-
+    const newParticipants: any[] = [];
 
     for (const user of users) {
       const userId = String(user.id).trim();
@@ -852,7 +859,8 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    let updatedRoom = room
+    let updatedRoom: any = room;
+
     if (newParticipants.length > 0) {
       updatedRoom = await ChatRoom.findByIdAndUpdate(
         roomId,
@@ -870,10 +878,14 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
       );
     }
 
+    // Create user preferences
     await Promise.all(
       newParticipants.map((p: any) =>
         UserPreference.updateOne(
-          { userId: p.userId, roomId },
+          {
+            userId: p.userId,
+            roomId
+          },
           {
             $setOnInsert: {
               userId: p.userId,
@@ -884,32 +896,74 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
               isArchived: false
             }
           },
-          { upsert: true }
+          {
+            upsert: true
+          }
         )
       )
     );
+
+    let systemMessage = null;
+
+    // Create single system message for added users
+    if (newParticipants.length > 0) {
+
+      const addedUserNames = newParticipants.map(
+        (p: any) =>
+          `${p.first_Name} ${p.last_name || ""}`.trim()
+      );
+
+      const message =
+        `${adminName} added ${addedUserNames.join(", ")}`;
+
+      systemMessage = await Messages.create({
+        roomId,
+        senderId: currentUserId,
+        senderName: adminName,
+        senderProfile: currentUser.profile_picture || null,
+        message,
+        messageType: "system"
+      });
+
+      // Update last message in chat room
+      await ChatRoom.findByIdAndUpdate(
+        roomId,
+        {
+          lastMessage: {
+            text: systemMessage.message,
+            senderId: currentUserId,
+            createdAt: systemMessage.createdAt
+          }
+        }
+      );
+    }
 
     return res.json({
       status: true,
       addedCount: newParticipants.length,
       alreadyExistsCount: alreadyExists.length,
-      alreadyExists: alreadyExists,
+      alreadyExists,
       message:
         newParticipants.length > 0
           ? "Participants added successfully"
           : "All users already exist in group",
-      data: updatedRoom
+      data: updatedRoom,
+      systemMessage
     });
 
   } catch (err) {
     console.error("addParticipant error:", err);
+
     return res.status(500).json({
       message: "Internal server error"
     });
   }
 };
 
-export const removeParticipant = async (req: AuthRequest, res: Response) => {
+export const removeParticipant = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     const { roomId, userId } = req.body;
 
@@ -924,7 +978,7 @@ export const removeParticipant = async (req: AuthRequest, res: Response) => {
     }
 
     const currentUser = room.participants.find(
-      (p: any) => p.userId === currentUserId
+      (p: any) => String(p.userId) === currentUserId
     );
 
     if (!currentUser || currentUser.role !== "admin") {
@@ -939,11 +993,31 @@ export const removeParticipant = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Find user to remove before deleting
+    const removedUser = room.participants.find(
+      (p: any) => String(p.userId) === String(userId)
+    );
+
+    if (!removedUser) {
+      return res.status(404).json({
+        message: "Participant not found"
+      });
+    }
+
+    const adminName =
+      `${currentUser.first_Name} ${currentUser.last_name || ""}`.trim();
+
+    const removedUserName =
+      `${removedUser.first_Name} ${removedUser.last_name || ""}`.trim();
+
+    // Remove participant
     const updatedRoom: any = await ChatRoom.findByIdAndUpdate(
       roomId,
       {
         $pull: {
-          participants: { userId: String(userId) }
+          participants: {
+            userId: String(userId)
+          }
         }
       },
       { returnDocument: "after" }
@@ -955,41 +1029,73 @@ export const removeParticipant = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Create system message
+    const systemMessage = await Messages.create({
+      roomId,
+      senderId: currentUserId,
+      senderName: adminName,
+      senderProfile: currentUser.profile_picture || null,
+      message: `${adminName} removed ${removedUserName}`,
+      messageType: "system"
+    });
+
+    // Update room last message
+    await ChatRoom.findByIdAndUpdate(
+      roomId,
+      {
+        lastMessage: {
+          text: systemMessage.message,
+          senderId: currentUserId,
+          createdAt: systemMessage.createdAt
+        }
+      }
+    );
+
+    // If only one participant remains, delete the group
     if (updatedRoom.participants.length <= 1) {
       await ChatRoom.findByIdAndDelete(roomId);
 
       return res.json({
         status: true,
-        message: "Group deleted as only one participant remained"
+        message:
+          "Group deleted as only one participant remained"
       });
     }
 
     return res.json({
       status: true,
-      data: updatedRoom
+      message: "Participant removed successfully",
+      data: updatedRoom,
+      systemMessage
     });
 
   } catch (err) {
-    console.error("removeParticipant error:", err);
+    console.error(
+      "removeParticipant error:",
+      err
+    );
+
     return res.status(500).json({
       message: "Internal server error"
     });
   }
 };
 
-export const leaveRoom = async (req: AuthRequest, res: Response) => {
+export const leaveRoom = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     const userId = String(req.user!.id);
     const { roomId } = req.body;
 
-    const room = await ChatRoom.findById(roomId);
+    const room: any = await ChatRoom.findById(roomId);
 
     if (!room) {
       return res.status(404).json({
         message: "Room not found"
       });
     }
-
     const participant = room.participants.find(
       (p: any) =>
         String(p.userId?._id || p.userId) === userId
@@ -1008,22 +1114,60 @@ export const leaveRoom = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const updatedRoom = await ChatRoom.findByIdAndUpdate(
+    const userName =
+      `${participant.first_Name} ${participant.last_name || ""}`.trim();
+
+    // Remove participant from group
+    const updatedRoom: any = await ChatRoom.findByIdAndUpdate(
       roomId,
       {
         $pull: {
-          participants: { userId }
+          participants: {
+            userId: String(userId)
+          }
         }
       },
       { returnDocument: "after" }
     );
 
+    if (!updatedRoom) {
+      return res.status(404).json({
+        message: "Room not found after update"
+      });
+    }
+
+    // Create system message
+    const systemMessage = await Messages.create({
+      roomId,
+      senderId: userId,
+      senderName: userName,
+      senderProfile: participant.profile_picture || null,
+      message: `${userName} left the group`,
+      messageType: "system"
+    });
+
+    // Update room last message
+    await ChatRoom.findByIdAndUpdate(
+      roomId,
+      {
+        lastMessage: {
+          text: systemMessage.message,
+          senderId: userId,
+          createdAt: systemMessage.createdAt
+        }
+      }
+    );
+
     return res.json({
       status: true,
-      data: updatedRoom
+      message: "You left the group successfully",
+      data: updatedRoom,
+      systemMessage
     });
+
   } catch (err) {
     console.error("leaveRoom error:", err);
+
     return res.status(500).json({
       message: "Internal server error"
     });
@@ -1516,7 +1660,6 @@ export const deleteForEveryone = async (req: AuthRequest, res: Response) => {
   }
 };
 
-
 export const deleteUserDevice = async (req: AuthRequest, res: Response) => {
   try {
     const { fcmToken } = req.query;
@@ -1775,7 +1918,7 @@ export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
     const updatedRoom = await ChatRoom.findByIdAndUpdate(
       roomId,
       { $set: updateData },
-      { new: true }
+      { upsert: true, returnDocument: "after" }
     );
 
     if (!updatedRoom) {
