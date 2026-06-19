@@ -84,7 +84,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
         lastMessage: room.lastMessage?.text || "",
 
-        lastMessageDate: room.lastMessage?.createdAt || null
+        lastMessageDate: room.lastMessage?.createdAt || null,
       });
 
     });
@@ -179,6 +179,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // =========================
       // MENTION VALIDATION
       // =========================
+      const isMentionAll = message.toLowerCase().includes("@all");
 
       const safeMentions =
         Array.isArray(mentions)
@@ -415,8 +416,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                   : messageType ===
                     MESSAGE_TYPES.POLL
                     ? `${poll?.question || "Poll"}`
-
-                    : message,
+                    : messageType === MESSAGE_TYPES.System
+                      ? message
+                      : message,
 
             senderId,
             createdAt:
@@ -475,7 +477,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
           lastMessageDate:
             updatedRoom?.lastMessage?.createdAt ||
-            null
+            null,
+          groupName: updatedRoom?.name,
+          groupImage: updatedRoom?.groupImage
         };
 
         if (
@@ -501,7 +505,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       io.to(roomId.toString()).emit(
         "receive_message",
-        formattedMsg
+        formattedMsg,
       );
 
       socket.emit(
@@ -519,7 +523,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
           lastMessageDate:
             updatedRoom?.lastMessage?.createdAt ||
-            null
+            null,
+          groupName: updatedRoom?.name,
+          groupImage: updatedRoom?.groupImage
         }
       );
 
@@ -530,7 +536,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         senderProfile,
         unreadCount: 0,
         lastMessage: updatedRoom?.lastMessage?.text,
-        lastMessageDate: updatedRoom?.lastMessage?.createdAt
+        lastMessageDate: updatedRoom?.lastMessage?.createdAt,
+        groupName: updatedRoom?.name,
+        groupImage: updatedRoom?.groupImage
       })
 
       socket.emit(
@@ -631,16 +639,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           const isMentioned =
             uniqueMentions.some(
               (m: any) =>
-                String(m.userId) ===
-                String(
-                  presence.userId
-                )
+                String(m.userId) === String(presence.userId)
             );
 
-          if (isMentioned) {
-
-            displayMessage =
-              `${senderName} mentioned you: ${message}`;
+          if (isMentionAll) {
+            displayMessage = `${senderName} mentioned everyone: ${message}`;
+          }
+          else if (isMentioned) {
+            displayMessage = `${senderName} mentioned you: ${message}`;
           }
 
           if (
@@ -720,14 +726,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             const isMentioned =
               uniqueMentions.some(
                 (m: any) =>
-                  String(m.userId) ===
-                  String(device.userId)
+                  String(m.userId) === String(device.userId)
               );
 
-            if (isMentioned) {
-
-              displayMessage =
-                `${senderName} mentioned you: ${message}`;
+            if (isMentionAll) {
+              displayMessage = `${senderName} mentioned everyone: ${message}`;
+            }
+            else if (isMentioned) {
+              displayMessage = `${senderName} mentioned you: ${message}`;
             }
 
             const otherParticipant = room.participants.find(
@@ -840,7 +846,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             roomId,
             unreadCount: userParticipant?.unreadCount || 0,
             lastMessage: updatedRoom?.lastMessage?.text || "",
-            lastMessageDate: updatedRoom?.lastMessage?.createdAt || null
+            lastMessageDate: updatedRoom?.lastMessage?.createdAt || null,
+            groupName: updatedRoom?.name,
+            groupImage: updatedRoom?.groupImage
           });
         });
       });
@@ -1313,7 +1321,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
             lastMessageDate:
               updatedRoom?.lastMessage?.createdAt ||
-              null
+              null,
+            groupName: updatedRoom?.name,
+            groupImage: updatedRoom?.groupImage
           };
           console.log("payload", payload)
           presence.socketIds.forEach(
@@ -1670,6 +1680,22 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       room.chatRequestStatus = "accepted";
       await room.save();
 
+      const devices = await UserDevice.find({
+        userId: senderId,
+        isActive: true,
+      });
+
+      await Promise.all(
+        devices.map((device) =>
+          sendNotification(
+            device.fcmToken,
+            "Chat Request Accepted",
+            `${receiver.first_Name} ${receiver.last_name} accepted your chat request`,
+            roomId
+          )
+        )
+      );
+
       console.log("updatedroom", room)
 
       console.log("EMITTING ACCEPTED");
@@ -1715,6 +1741,23 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       room.chatRequestStatus = "rejected";
       await room.save();
+
+      const devices = await UserDevice.find({
+        userId: senderId,
+        isActive: true,
+      });
+
+      await Promise.all(
+        devices.map((device) =>
+          sendNotification(
+            device.fcmToken,
+            "Chat Request Rejected",
+            `${receiver.first_Name} ${receiver.last_name} rejected your chat request`,
+            roomId
+          )
+        )
+      );
+
       console.log("updatedroom", room)
 
       console.log("EMITTING REJECTED");
@@ -1858,3 +1901,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   );
 
 };
+
+export const dffg = () => {
+
+}

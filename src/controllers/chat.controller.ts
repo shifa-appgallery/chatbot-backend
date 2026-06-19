@@ -12,6 +12,7 @@ import { getSequelize } from "../config/mysql";
 import mongoose from "mongoose";
 import { MESSAGE_TYPES } from "../constant/enum";
 import Messages from "../models/Messages";
+import { sendNotification } from "../utils/sendPush";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -235,6 +236,29 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       .filter((p: any) => p.role === "admin")
       .map((p: any) => p.userId);
 
+    if (!isGroup) {
+      const receiverId = formattedParticipantIds[0];
+
+      const devices = await UserDevice.find({
+        userId: receiverId,
+        isActive: true
+      });
+
+      const senderName =
+        `${currentUser.first_name} ${currentUser.last_name}`;
+
+      await Promise.all(
+        devices.map((device) =>
+          sendNotification(
+            device.fcmToken,
+            "New Chat Request",
+            `${senderName} sent you a chat request`,
+            room._id.toString()
+          )
+        )
+      );
+    }
+
     return res.status(201).json({
       status: true,
       data: {
@@ -376,7 +400,9 @@ export const sendMessage = async (
           ? "Video"
           : type === MESSAGE_TYPES.POLL
             ? "Poll"
-            : message;
+            : messageType === MESSAGE_TYPES.System
+              ? message
+              : message;
 
     await ChatRoom.findByIdAndUpdate(
       roomId,
@@ -704,7 +730,8 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
             ? "Photo"
             : type === MESSAGE_TYPES.Video
               ? "Video"
-              : type === MESSAGE_TYPES.Video ? "Poll " : lastMsg?.message || ""
+              : type === MESSAGE_TYPES.Video ? "Poll " : type === MESSAGE_TYPES.System
+                ? lastMsg?.message : lastMsg?.message || ""
 
         return {
           _id: room._id,
@@ -1918,7 +1945,7 @@ export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
     const updatedRoom = await ChatRoom.findByIdAndUpdate(
       roomId,
       { $set: updateData },
-      { upsert: true, returnDocument: "after" }
+      { returnDocument: "after" }
     );
 
     if (!updatedRoom) {
