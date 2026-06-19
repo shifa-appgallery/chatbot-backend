@@ -582,19 +582,26 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
         }
         : null;
 
-      const readByWithUsers = (msg.readBy || []).map((read: any) => {
-        const readUser = userMap.get(String(read.userId));
+      const readByWithUsers = (msg.readBy || [])
+        .map((read: any) => {
+          const readUser = userMap.get(String(read.userId));
 
-        return {
-          ...(read.toObject?.() || read),
-          userName: readUser?.fullName || "Unknown",
-          userProfile: readUser?.profile_picture
-            ? readUser.profile_picture.startsWith("http")
-              ? readUser.profile_picture
-              : `${process.env.PROFILE_URL}${readUser.profile_picture}`
-            : null
-        };
-      });
+          return {
+            ...(read.toObject?.() || read),
+            userName: readUser?.fullName || "Unknown",
+            userProfile: readUser?.profile_picture
+              ? readUser.profile_picture.startsWith("http")
+                ? readUser.profile_picture
+                : `${process.env.PROFILE_URL}${readUser.profile_picture}`
+              : null
+          };
+        })
+        .filter(
+          (read: any, index: number, self: any[]) =>
+            index === self.findIndex(
+              (r: any) => String(r.userId) === String(read.userId)
+            )
+        );
 
       return {
         ...msg.toObject(),
