@@ -351,7 +351,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 : "Video"
               : messageType === MESSAGE_TYPES.POLL
                 ? `${poll?.question || "Poll"}`
-                : message
+
+                : messageType === MESSAGE_TYPES.System
+                  ? message
+
+                  : message
       };
 
       // =========================
@@ -522,7 +526,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // =========================
       // SEND MESSAGE
       // =========================
-
+      console.log(
+        "RECEIVE MESSAGE EVENT:",
+        JSON.stringify(formattedMsg, null, 2)
+      );
       io.to(roomId.toString()).emit(
         "receive_message",
         formattedMsg,
