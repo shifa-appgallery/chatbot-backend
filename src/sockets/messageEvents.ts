@@ -184,7 +184,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // =========================
       // MENTION VALIDATION
       // =========================
-      const isMentionAll = textContent.toLowerCase().includes("@all");
+      const isMentionAll =
+        textContent.toLowerCase().includes("@all") ||
+        textContent.toLowerCase().includes("@everyone");
 
       const safeMentions =
         Array.isArray(mentions)
@@ -677,7 +679,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           }
         }
       );
-
+      console.log("isMentionAll:", isMentionAll);
+      console.log("textContent:", textContent);
       // =========================
       // PUSH NOTIFICATIONS
       // =========================
@@ -739,7 +742,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             else if (isMentioned) {
               displayMessage = `${senderName} mentioned you: ${textContent}`;
             }
-
+            console.log("displayMessage", displayMessage)
             const notificationTitle = room.isGroup
               ? `${senderName} (${room.name || "Group"})`
               : senderName;
