@@ -184,9 +184,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // =========================
       // MENTION VALIDATION
       // =========================
-      const isMentionAll =
-        textContent.toLowerCase().includes("@all") ||
-        textContent.toLowerCase().includes("@everyone");
+
 
       const safeMentions =
         Array.isArray(mentions)
@@ -280,6 +278,24 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             )
         );
 
+      const lowerText = textContent.toLowerCase();
+      const isMentionAll =
+        lowerText.includes("@all") ||
+        lowerText.includes("@everyone");
+
+      let finalMentions = [...uniqueMentions];
+
+      if (isMentionAll) {
+        const startIndex =
+          textContent.toLowerCase().indexOf("@everyone");
+
+        finalMentions.push({
+          userId: "all",
+          userName: "Everyone",
+          startIndex,
+          endIndex: startIndex + "@Everyone".length
+        });
+      }
       // =========================
       // CREATE MESSAGE
       // =========================
@@ -308,7 +324,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           replyMessageData,
 
         mentions:
-          uniqueMentions
+          finalMentions
       });
 
       // =========================
@@ -317,6 +333,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       const formattedMsg = {
         ...msg.toObject(),
+        mentions: finalMentions,
         senderName,
         senderProfile,
 
@@ -640,7 +657,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
           // MENTION NOTIFICATION
           const isMentioned =
-            uniqueMentions.some(
+            finalMentions.some(
               (m: any) =>
                 String(m.userId) === String(presence.userId)
             );
@@ -731,7 +748,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
             // MENTION PUSH
             const isMentioned =
-              uniqueMentions.some(
+              finalMentions.some(
                 (m: any) =>
                   String(m.userId) === String(device.userId)
               );
