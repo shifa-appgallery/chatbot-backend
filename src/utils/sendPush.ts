@@ -5,7 +5,8 @@ export const sendNotification = async (
   deviceToken: string,
   title: string,
   body: string,
-  roomId?: string
+  roomId: string,
+  unreadCount?: number
 ) => {
   const accessToken = await getAccessToken();
 
@@ -17,12 +18,13 @@ export const sendNotification = async (
 
         notification: {
           title,
-          body,
+          body
         },
 
         data: {
           roomId: roomId || "",
           type: "chat",
+          unreadCount
         },
 
         webpush: {

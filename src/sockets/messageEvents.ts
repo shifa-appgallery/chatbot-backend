@@ -693,7 +693,12 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
         devices.map(
           async device => {
-
+            
+            const userParticipant =
+              updatedRoom?.participants.find(
+                (p: any) =>
+                  String(p.userId) === String(device.userId)
+              );
             let displayMessage =
               formattedMsg.displayMessage;
 
@@ -753,7 +758,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
               displayMessage,
 
-              roomId
+              roomId,
+              userParticipant?.unreadCount || 0
             );
           }
         )
