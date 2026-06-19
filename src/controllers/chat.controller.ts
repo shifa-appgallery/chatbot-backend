@@ -2469,7 +2469,7 @@ export const getUserRequests = async (
 
 export const deleteGroup = async (req: AuthRequest, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const { roomId } = req.query;
     const userId = String(req.user!.id);
 
     const room = await ChatRoom.findById(roomId);
