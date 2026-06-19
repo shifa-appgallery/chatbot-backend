@@ -23,9 +23,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         },
         { upsert: true }
       );
-
-      console.log("User connected:", userId, socket.id);
-
       socket.broadcast.emit("user_online", { userId });
 
       const onlineUsers = await UserPresence.find(
@@ -44,8 +41,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
   socket.on("disconnect", async () => {
     try {
-      console.log("User disconnected:", userId, "Socket:", socket.id);
-
       await UserPresence.updateOne(
         { userId },
         {
@@ -66,9 +61,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       io.emit("online_users_list", {
         users: onlineUsers.map(u => String(u.userId))
       });
-
-      console.log("User offline:", userId);
-
     } catch (err) {
       console.error("disconnect error:", err);
     }

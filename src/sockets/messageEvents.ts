@@ -526,10 +526,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // =========================
       // SEND MESSAGE
       // =========================
-      console.log(
-        "RECEIVE MESSAGE EVENT:",
-        JSON.stringify(formattedMsg, null, 2)
-      );
       io.to(roomId.toString()).emit(
         "receive_message",
         formattedMsg,
@@ -555,18 +551,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           groupImage: updatedRoom?.groupImage
         }
       );
-
-      console.log("Sending room_updated to sender");
-      console.log({
-        roomId,
-        senderName,
-        senderProfile,
-        unreadCount: 0,
-        lastMessage: updatedRoom?.lastMessage?.text,
-        lastMessageDate: updatedRoom?.lastMessage?.createdAt,
-        groupName: updatedRoom?.name,
-        groupImage: updatedRoom?.groupImage
-      })
 
       socket.emit(
         "message_sent",
@@ -703,8 +687,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           }
         }
       );
-      console.log("isMentionAll:", isMentionAll);
-      console.log("textContent:", textContent);
       // =========================
       // PUSH NOTIFICATIONS
       // =========================
@@ -766,7 +748,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             else if (isMentioned) {
               displayMessage = `${senderName} mentioned you: ${textContent}`;
             }
-            console.log("displayMessage", displayMessage)
             const notificationTitle = room.isGroup
               ? `${senderName} (${room.name || "Group"})`
               : senderName;
@@ -775,7 +756,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               device.fcmToken,
               notificationTitle,
               displayMessage,
-              roomId            );
+              roomId,
+              userParticipant?.unreadCount || 0
+            );
           }
         )
       );
@@ -1356,7 +1339,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             groupName: updatedRoom?.name,
             groupImage: updatedRoom?.groupImage
           };
-          console.log("payload", payload)
           presence.socketIds.forEach(
             (socketId: string) => {
 
@@ -1690,18 +1672,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     try {
       const userId = socket.user?._id?.toString();
       if (!userId) return;
-      console.log("userId", userId)
       const room = await ChatRooms.findById(roomId);
       if (!room) return;
-      console.log("room", room)
       if (room.chatRequestStatus !== "pending") return;
 
       const senderId = room.chatRequestSenderId?.toString();
-      console.log("senderId", senderId)
       const receiver = room.participants.find(
         (p) => p.userId.toString() !== senderId
       );
-      console.log("receiver", receiver)
 
       if (!receiver) return;
 
@@ -1727,10 +1705,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         )
       );
 
-      console.log("updatedroom", room)
-
-      console.log("EMITTING ACCEPTED");
-
       io.to(roomId.toString()).emit("chat_request_accepted", {
         roomId,
         chatRequestStatus: "accepted",
@@ -1745,25 +1719,20 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     try {
       const userId = socket.user?._id?.toString();
       if (!userId) return;
-      console.log("userId", userId)
 
       const room = await ChatRooms.findById(roomId);
       if (!room) return;
 
       if (room.chatRequestStatus !== "pending") return;
-      console.log("room", room)
 
       const senderId = room.chatRequestSenderId?.toString();
-      console.log("senderId", senderId)
 
       // derive receiver from participants
       const receiver = room.participants.find(
         (p) => p.userId.toString() !== senderId
       );
-      console.log("receiver", receiver)
 
       if (!receiver) {
-        console.log("Receiver not found");
         return;
       }
 
@@ -1788,10 +1757,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           )
         )
       );
-
-      console.log("updatedroom", room)
-
-      console.log("EMITTING REJECTED");
 
       io.to(roomId.toString()).emit("chat_request_rejected", {
         roomId,
