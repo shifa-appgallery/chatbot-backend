@@ -15,6 +15,12 @@ const messageSchema = new mongoose.Schema({
 
   message: String,
 
+  caption: {
+    type: String,
+    default: ""
+  },
+
+
   messageType: {
     type: String,
     enum: Object.values(MESSAGE_TYPES),

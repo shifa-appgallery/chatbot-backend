@@ -302,6 +302,7 @@ export const sendMessage = async (
     const {
       roomId,
       message,
+      caption,
       messageType,
       mediaUrl,
       replyMessageId
@@ -370,6 +371,7 @@ export const sendMessage = async (
       roomId,
       senderId,
       message,
+      caption,
       messageType,
       mediaUrl,
 

@@ -12,6 +12,7 @@ import { MESSAGE_TYPES } from "../constant/enum";
 interface SendMessagePayload {
   roomId: string;
   message: string;
+  caption: string;
   messageType?: string;
   mediaUrl?: string | null;
   poll?: {
@@ -90,7 +91,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     });
   })();
 
-  socket.on("send_message", async ({ roomId, message, messageType, mediaUrl, poll, replyMessageId, isForwarded = false, mentions = [] }: SendMessagePayload) => {
+  socket.on("send_message", async ({ roomId, message, caption, messageType, mediaUrl, poll, replyMessageId, isForwarded = false, mentions = [] }: SendMessagePayload) => {
     try {
 
       const senderId = String(socket.user?._id);
@@ -284,6 +285,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         roomId,
         senderId,
         message,
+        caption,
         messageType:
           messageType || "text",
         mediaUrl:
@@ -693,7 +695,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
         devices.map(
           async device => {
-            
+
             const userParticipant =
               updatedRoom?.participants.find(
                 (p: any) =>
