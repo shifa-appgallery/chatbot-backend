@@ -16,12 +16,14 @@ export const sendNotification = async (
       message: {
         token: deviceToken,
 
-        notification: {
-          title,
-          body
-        },
+        // notification: {
+        //   title,
+        //   body
+        // },
 
         data: {
+          title,
+          body,
           roomId: roomId || "",
           type: "chat",
           unreadCount: String(unreadCount)
