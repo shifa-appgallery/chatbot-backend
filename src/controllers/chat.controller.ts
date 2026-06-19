@@ -582,6 +582,20 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
         }
         : null;
 
+      const readByWithUsers = (msg.readBy || []).map((read: any) => {
+        const readUser = userMap.get(String(read.userId));
+
+        return {
+          ...(read.toObject?.() || read),
+          userName: readUser?.fullName || "Unknown",
+          userProfile: readUser?.profile_picture
+            ? readUser.profile_picture.startsWith("http")
+              ? readUser.profile_picture
+              : `${process.env.PROFILE_URL}${readUser.profile_picture}`
+            : null
+        };
+      });
+
       return {
         ...msg.toObject(),
         senderName:
@@ -605,7 +619,8 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
         })(),
         reactions: reactionsWithUsers,
 
-        poll: pollWithUsers
+        poll: pollWithUsers,
+        readBy: readByWithUsers,
       };
     });
 
