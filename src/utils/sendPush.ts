@@ -36,9 +36,10 @@ export const sendNotification = async (
         },
 
         android: {
-          notification: {
-            tag: roomId || Date.now().toString(),
-          },
+          priority:"high",
+          // notification: {
+          //   tag: roomId || Date.now().toString(),
+          // },
 
         },
 
