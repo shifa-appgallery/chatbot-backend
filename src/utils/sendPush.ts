@@ -24,7 +24,7 @@ export const sendNotification = async (
         data: {
           roomId: roomId || "",
           type: "chat",
-          unreadCount
+          unreadCount: String(unreadCount)
         },
 
         webpush: {
