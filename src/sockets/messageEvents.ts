@@ -100,7 +100,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       if (!room) return;
 
-      const textContent = message ?? caption ?? "";
+      const textContent =
+        messageType === MESSAGE_TYPES.Image ||
+          messageType === MESSAGE_TYPES.Video
+          ? caption || ""
+          : message || "";
       if (
         !room.isGroup &&
         room.chatRequestStatus !== "accepted"
@@ -318,18 +322,16 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           msg.isForwarded || false,
 
         displayMessage:
-          messageType ===
-            MESSAGE_TYPES.Image
-            ? "Photo"
-
-            : messageType ===
-              MESSAGE_TYPES.Video
-              ? "Video"
-
-              : messageType ===
-                MESSAGE_TYPES.POLL
+          messageType === MESSAGE_TYPES.Image
+            ? caption
+              ? `${caption}`
+              : "Photo"
+            : messageType === MESSAGE_TYPES.Video
+              ? caption
+                ? `${caption}`
+                : "Video"
+              : messageType === MESSAGE_TYPES.POLL
                 ? `${poll?.question || "Poll"}`
-
                 : message
       };
 
@@ -404,14 +406,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         {
           lastMessage: {
             text:
-              messageType ===
-                MESSAGE_TYPES.Image
-                ? "Photo"
-
-                : messageType ===
-                  MESSAGE_TYPES.Video
-                  ? "Video"
-
+              messageType === MESSAGE_TYPES.Image
+                ? caption
+                  ? `Photo: ${caption}`
+                  : "Photo"
+                : messageType === MESSAGE_TYPES.Video
+                  ? caption
+                    ? `Video: ${caption}`
+                    : "Video"
                   : messageType ===
                     MESSAGE_TYPES.POLL
                     ? `${poll?.question || "Poll"}`
@@ -711,18 +713,16 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             ) {
 
               displayMessage =
-                messageType ===
-                  MESSAGE_TYPES.Image
-                  ? `${senderName} replied with a photo`
-
-                  : messageType ===
-                    MESSAGE_TYPES.Video
-                    ? `${senderName} replied with a video`
-
-                    : messageType ===
-                      MESSAGE_TYPES.POLL
+                messageType === MESSAGE_TYPES.Image
+                  ? caption
+                    ? `${senderName} replied: ${caption}`
+                    : `${senderName} replied with a photo`
+                  : messageType === MESSAGE_TYPES.Video
+                    ? caption
+                      ? `${senderName} replied: ${caption}`
+                      : `${senderName} replied with a video`
+                    : messageType === MESSAGE_TYPES.POLL
                       ? `${senderName} replied with a poll`
-
                       : `${senderName} replied: ${textContent}`;
             }
 
@@ -739,16 +739,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             else if (isMentioned) {
               displayMessage = `${senderName} mentioned you: ${textContent}`;
             }
-
-            const otherParticipant = room.participants.find(
-              (p: any) => String(p.userId) !== String(senderId)
-            );
-
-            // const chatTitle = room.isGroup
-            //   ? room.name || "Group"
-            //   : otherParticipant
-            //     ? `${otherParticipant.first_Name} ${otherParticipant.last_name}`
-            //     : "Chat";
 
             const notificationTitle = room.isGroup
               ? `${senderName} (${room.name || "Group"})`
