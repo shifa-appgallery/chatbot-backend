@@ -13,6 +13,7 @@ import mongoose from "mongoose";
 import { MESSAGE_TYPES } from "../constant/enum";
 import Messages from "../models/Messages";
 import { sendNotification } from "../utils/sendPush";
+import { Server } from "socket.io";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -804,7 +805,7 @@ export const getRoomById = async (req: AuthRequest, res: Response) => {
 export const addParticipant = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId, userIds } = req.body;
-
+    const io = req.app.get("io");
     const currentUserId = String(req.user!.id);
 
     if (!Array.isArray(userIds) || userIds.length === 0) {
@@ -954,6 +955,16 @@ export const addParticipant = async (req: AuthRequest, res: Response) => {
         messageType: "system"
       });
 
+      const formattedMsg = {
+        ...systemMessage.toObject(),
+        displayMessage: systemMessage.message
+      };
+
+      io.to(roomId.toString()).emit(
+        "receive_message",
+        formattedMsg
+      );
+
       // Update last message in chat room
       await ChatRoom.findByIdAndUpdate(
         roomId,
@@ -995,7 +1006,7 @@ export const removeParticipant = async (
 ) => {
   try {
     const { roomId, userId } = req.body;
-
+    const io = req.app.get("io");
     const currentUserId = String(req.user!.id);
 
     const room: any = await ChatRoom.findById(roomId);
@@ -1068,6 +1079,16 @@ export const removeParticipant = async (
       messageType: "system"
     });
 
+    const formattedMsg = {
+      ...systemMessage.toObject(),
+      displayMessage: systemMessage.message
+    };
+
+    io.to(roomId.toString()).emit(
+      "receive_message",
+      formattedMsg
+    );
+
     // Update room last message
     await ChatRoom.findByIdAndUpdate(
       roomId,
@@ -1117,6 +1138,7 @@ export const leaveRoom = async (
   try {
     const userId = String(req.user!.id);
     const { roomId } = req.body;
+    const io = req.app.get("io");
 
     const room: any = await ChatRoom.findById(roomId);
 
@@ -1175,6 +1197,15 @@ export const leaveRoom = async (
       messageType: "system"
     });
 
+    const formattedMsg = {
+      ...systemMessage.toObject(),
+      displayMessage: systemMessage.message
+    };
+
+    io.to(roomId.toString()).emit(
+      "receive_message",
+      formattedMsg
+    );
     // Update room last message
     await ChatRoom.findByIdAndUpdate(
       roomId,
@@ -1891,7 +1922,7 @@ export const createGroupsFromTeams = async (req: Request, res: Response) => {
 export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
   try {
     const { roomId, name, groupImage } = req.body;
-
+    const io = req.app.get("io") as Server;
     const systemMessages: string[] = [];
 
     const currentUserId = String(req.user!.id);
@@ -1972,6 +2003,17 @@ export const updateGroupDetails = async (req: AuthRequest, res: Response) => {
 
     // Update room last message
     if (latestSystemMessage) {
+
+      const formattedMessage = {
+        ...latestSystemMessage.toObject(),
+        displayMessage: latestSystemMessage.message
+      };
+
+      io.to(roomId.toString()).emit(
+        "receive_message",
+        formattedMessage
+      );
+
       await ChatRoom.findByIdAndUpdate(
         roomId,
         {
