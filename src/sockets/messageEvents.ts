@@ -747,19 +747,20 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               (p: any) => String(p.userId) !== String(senderId)
             );
 
-            const chatTitle = room.isGroup
-              ? room.name || "Group"
-              : otherParticipant
-                ? `${otherParticipant.first_Name} ${otherParticipant.last_name}`
-                : "Chat";
+            // const chatTitle = room.isGroup
+            //   ? room.name || "Group"
+            //   : otherParticipant
+            //     ? `${otherParticipant.first_Name} ${otherParticipant.last_name}`
+            //     : "Chat";
+
+            const notificationTitle = room.isGroup
+              ? `${senderName} (${room.name || "Group"})`
+              : senderName;
 
             return sendNotification(
               device.fcmToken,
-
-              `${senderName || "Unknown"} (${chatTitle})`,
-
+              notificationTitle,
               displayMessage,
-
               roomId,
               userParticipant?.unreadCount || 0
             );
