@@ -100,7 +100,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       if (!room) return;
 
-
+      const textContent = message ?? caption ?? "";
       if (
         !room.isGroup &&
         room.chatRequestStatus !== "accepted"
@@ -180,7 +180,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // =========================
       // MENTION VALIDATION
       // =========================
-      const isMentionAll = message.toLowerCase().includes("@all");
+      const isMentionAll = textContent.toLowerCase().includes("@all");
 
       const safeMentions =
         Array.isArray(mentions)
@@ -195,11 +195,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             ) {
               return false;
             }
-
+            // VALID INDEXES
             // VALID INDEXES
             if (
               m.startIndex < 0 ||
-              m.endIndex > message.length ||
+              m.endIndex > textContent.length ||
               m.startIndex >= m.endIndex
             ) {
               return false;
@@ -219,11 +219,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
             // VALID TEXT MATCH
 
-            const mentionText =
-              message.substring(
-                m.startIndex,
-                m.endIndex
-              );
+            const mentionText = textContent.substring(
+              m.startIndex,
+              m.endIndex
+            );
 
             const normalizedMention =
               mentionText
@@ -250,8 +249,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 }
               );
             }
-
-            return true;
 
             return true;
           })
@@ -634,7 +631,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                     MESSAGE_TYPES.POLL
                     ? `${senderName} replied with a poll`
 
-                    : `${senderName} replied: ${message}`;
+                    : `${senderName} replied: ${textContent}`;
           }
 
           // MENTION NOTIFICATION
@@ -645,10 +642,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             );
 
           if (isMentionAll) {
-            displayMessage = `${senderName} mentioned everyone: ${message}`;
+            displayMessage = `${senderName} mentioned everyone: ${textContent}`;
           }
           else if (isMentioned) {
-            displayMessage = `${senderName} mentioned you: ${message}`;
+            displayMessage = `${senderName} mentioned you: ${textContent}`;
           }
 
           if (
@@ -726,7 +723,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                       MESSAGE_TYPES.POLL
                       ? `${senderName} replied with a poll`
 
-                      : `${senderName} replied: ${message}`;
+                      : `${senderName} replied: ${textContent}`;
             }
 
             // MENTION PUSH
@@ -737,10 +734,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               );
 
             if (isMentionAll) {
-              displayMessage = `${senderName} mentioned everyone: ${message}`;
+              displayMessage = `${senderName} mentioned everyone: ${textContent}`;
             }
             else if (isMentioned) {
-              displayMessage = `${senderName} mentioned you: ${message}`;
+              displayMessage = `${senderName} mentioned you: ${textContent}`;
             }
 
             const otherParticipant = room.participants.find(
@@ -867,11 +864,13 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   socket.on("edit_message", async ({
     messageId,
     message,
+    caption,
     mediaUrl,
     mentions = []
   }: {
     messageId: string;
-    message: string;
+    message?: string;
+    caption?: string;
     mediaUrl?: string;
     mentions?: {
       userId: string;
@@ -905,7 +904,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           }
         );
       }
-
+      const textContent =
+        existingMessage.messageType === MESSAGE_TYPES.Image ||
+          existingMessage.messageType === MESSAGE_TYPES.Video
+          ? caption || ""
+          : message || "";
       // =========================
       // ONLY SENDER CAN EDIT
       // =========================
@@ -946,7 +949,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       }
 
       const oldMessage =
-        existingMessage.message;
+        existingMessage.messageType === MESSAGE_TYPES.Image ||
+          existingMessage.messageType === MESSAGE_TYPES.Video
+          ? existingMessage.caption
+            ? `Photo: ${existingMessage.caption}`
+            : existingMessage.messageType === MESSAGE_TYPES.Image
+              ? "Photo"
+              : "Video"
+          : existingMessage.message;
 
       // =========================
       // MENTION VALIDATION
@@ -1001,7 +1011,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 m.startIndex < 0 ||
 
                 m.endIndex >
-                message.length ||
+                textContent.length ||
 
                 m.startIndex >=
                 m.endIndex
@@ -1026,7 +1036,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
               // VALID TEXT MATCH
               const mentionText =
-                message.substring(
+                textContent.substring(
                   m.startIndex,
                   m.endIndex
                 );
@@ -1102,15 +1112,16 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
           {
             $set: {
+              message:
+                message ?? existingMessage.message,
 
-              message,
+              caption:
+                caption ?? existingMessage.caption,
 
-              mentions:
-                uniqueMentions,
+              mentions: uniqueMentions,
 
               mediaUrl:
-                mediaUrl ??
-                existingMessage.mediaUrl,
+                mediaUrl ?? existingMessage.mediaUrl,
 
               isEdited: true
             }
@@ -1130,24 +1141,18 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // =========================
 
       const displayMessage =
+        updatedMessage.messageType === MESSAGE_TYPES.Image
+          ? updatedMessage.caption
+            ? `Photo: ${updatedMessage.caption}`
+            : "Photo"
 
-        updatedMessage.messageType ===
-          MESSAGE_TYPES.Image
+          : updatedMessage.messageType === MESSAGE_TYPES.Video
+            ? updatedMessage.caption
+              ? `Video: ${updatedMessage.caption}`
+              : "Video"
 
-          ? "Photo"
-
-          : updatedMessage.messageType ===
-            MESSAGE_TYPES.Video
-
-            ? "Video"
-
-            : updatedMessage.messageType ===
-              MESSAGE_TYPES.POLL
-
-              ? (
-                updatedMessage.poll?.question ||
-                "Poll"
-              )
+            : updatedMessage.messageType === MESSAGE_TYPES.POLL
+              ? updatedMessage.poll?.question || "Poll"
 
               : updatedMessage.message;
 
@@ -1207,6 +1212,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
         message:
           updatedMessage.message,
+
+        caption: updatedMessage.caption,
 
         messageType:
           updatedMessage.messageType,
@@ -1401,7 +1408,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               );
 
             const displayMessage =
-              `${existingMessage.senderName} mentioned you in an edited message: ${message}`;
+              `${existingMessage.senderName} mentioned you in an edited message: ${textContent}`;
 
             if (
               Array.isArray(
