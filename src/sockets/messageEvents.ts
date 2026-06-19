@@ -775,9 +775,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               device.fcmToken,
               notificationTitle,
               displayMessage,
-              roomId,
-              userParticipant?.unreadCount || 0
-            );
+              roomId            );
           }
         )
       );
