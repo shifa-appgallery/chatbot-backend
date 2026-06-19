@@ -47,25 +47,19 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           { _id: { $in: messageIds } },
           {
             $addToSet: {
-              deliveredTo: {
+              readBy: {
                 userId,
-                deliveredAt: new Date()
+                readAt: new Date()
               }
             }
           }
         );
 
-        socket.to(roomId).emit("messages_delivered", {
+        socket.to(roomId).emit("messages_read", {
           userId,
           roomId,
           messageIds
         });
-
-        // socket.to(roomId).emit("messages_read", {
-        //   userId,
-        //   roomId,
-        //   messageIds
-        // });
       }
 
       console.log(`User ${userId} joined room ${roomId}`);
