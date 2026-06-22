@@ -177,34 +177,10 @@ export const createGroupByRole = async (req: AuthRequest, res: Response) => {
 export const addMembersToGroup = async (req: AuthRequest, res: Response) => {
   try {
     const { teamId, userIds = [] } = req.body;
-    const currentUserId = String(req.user!.id);
 
     if (!teamId || !userIds.length) {
       return res.status(400).json({
         message: "teamId and userIds are required"
-      });
-    }
-
-    const sequelize = getSequelize();
-
-    const userWithRole: any = await User.findOne({
-      where: { id: currentUserId },
-      attributes: ["id", "role_id"],
-      raw: true
-    });
-
-    const [roles]: any = await sequelize.query(
-      `SELECT id, title FROM roles WHERE id = :roleId`,
-      {
-        replacements: { roleId: userWithRole.role_id }
-      }
-    );
-
-    const roleTitle = roles?.[0]?.title;
-
-    if (!["admin", "Team Manager", "superadmin"].includes(roleTitle)) {
-      return res.status(403).json({
-        message: "Only admin or team manager can add members"
       });
     }
 
@@ -216,16 +192,6 @@ export const addMembersToGroup = async (req: AuthRequest, res: Response) => {
     if (!room) {
       return res.status(404).json({
         message: "Group not found"
-      });
-    }
-
-    const currentUser = room.participants.find(
-      (p: any) => p.userId === currentUserId
-    );
-
-    if (!currentUser || currentUser.role !== "admin") {
-      return res.status(403).json({
-        message: "Only group admin can add members"
       });
     }
 
@@ -306,29 +272,6 @@ export const removeMemberFromGroup = async (req: AuthRequest, res: Response) => 
       });
     }
 
-    const sequelize = getSequelize();
-
-    const userWithRole: any = await User.findOne({
-      where: { id: currentUserId },
-      attributes: ["id", "role_id"],
-      raw: true
-    });
-
-    const [roles]: any = await sequelize.query(
-      `SELECT id, title FROM roles WHERE id = :roleId`,
-      {
-        replacements: { roleId: userWithRole.role_id }
-      }
-    );
-
-    const roleTitle = roles?.[0]?.title;
-
-    if (!["admin", "Team Manager", "superadmin"].includes(roleTitle)) {
-      return res.status(403).json({
-        message: "Only admin or team manager can remove members"
-      });
-    }
-
     const room: any = await ChatRooms.findOne({
       teamId: String(teamId),
       isGroup: true
@@ -337,22 +280,6 @@ export const removeMemberFromGroup = async (req: AuthRequest, res: Response) => 
     if (!room) {
       return res.status(404).json({
         message: "Group not found"
-      });
-    }
-
-    const currentUser = room.participants.find(
-      (p: any) => p.userId === currentUserId
-    );
-
-    if (!currentUser || currentUser.role !== "admin") {
-      return res.status(403).json({
-        message: "Only group admin can remove members"
-      });
-    }
-
-    if (currentUserId === String(userIdToRemove)) {
-      return res.status(400).json({
-        message: "Admin cannot remove themselves"
       });
     }
 
