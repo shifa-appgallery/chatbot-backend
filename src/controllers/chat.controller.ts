@@ -2366,24 +2366,7 @@ export const getUserRequests = async (
 
     const sequelize = getSequelize();
 
-    // GET PLAYER ROLE
-    const [roles]: any = await sequelize.query(`
-      SELECT id, title
-      FROM roles
-      WHERE title = 'Player'
-      LIMIT 1
-    `);
-
-    const playerRoleId = roles?.[0]?.id;
-
-    if (!playerRoleId) {
-      return res.status(404).json({
-        status: false,
-        message: "Player role not found"
-      });
-    }
-
-    // GET PLAYERS
+    // GET USERS
     const [users]: any = await sequelize.query(`
       SELECT DISTINCT
         u.user_id AS id,
@@ -2398,12 +2381,11 @@ export const getUserRequests = async (
 
       FROM users u
 
-      INNER JOIN team_users tu
+      LEFT JOIN team_users tu
         ON tu.user_id = u.user_id
 
       WHERE
-        FIND_IN_SET(:playerRoleId, tu.team_role_ids)
-        AND (tu.isDelete = 0 OR tu.isDelete IS NULL)
+        (tu.isDelete = 0 OR tu.isDelete IS NULL)
 
         AND (
           CONCAT(
@@ -2414,7 +2396,6 @@ export const getUserRequests = async (
         )
     `, {
       replacements: {
-        playerRoleId,
         search: `%${searchTerm}%`
       }
     });
@@ -2437,7 +2418,6 @@ export const getUserRequests = async (
         return;
       }
 
-      // FIND OTHER USER
       const otherParticipant = chat.participants.find(
         (participant: any) =>
           String(participant.userId) !== loggedInUserId
@@ -2447,11 +2427,8 @@ export const getUserRequests = async (
         return;
       }
 
-      const participantId = String(
-        otherParticipant.userId
-      );
+      const participantId = String(otherParticipant.userId);
 
-      // ACCEPTED = FRIENDS
       if (chat.chatRequestStatus === "accepted") {
 
         requestStatusMap.set(
@@ -2459,10 +2436,7 @@ export const getUserRequests = async (
           "friends"
         );
 
-      }
-
-      // PENDING
-      else if (
+      } else if (
         chat.chatRequestStatus === "pending"
       ) {
 
@@ -2471,15 +2445,9 @@ export const getUserRequests = async (
           "requested"
         );
 
-      }
+      } else {
 
-      // REJECTED
-      else {
-
-        // ONLY SET NONE IF NO OTHER STATUS EXISTS
-        if (
-          !requestStatusMap.has(participantId)
-        ) {
+        if (!requestStatusMap.has(participantId)) {
 
           requestStatusMap.set(
             participantId,
@@ -2487,7 +2455,6 @@ export const getUserRequests = async (
           );
 
         }
-
       }
 
     });
