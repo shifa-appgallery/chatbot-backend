@@ -9,7 +9,9 @@ export const sendNotification = async (
   unreadCount?: number
 ) => {
   const accessToken = await getAccessToken();
-
+console.log(
+  `${process.env.FRONTEND_URL}?roomId=${roomId}`
+);
   await axios.post(
     `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`,
     {
