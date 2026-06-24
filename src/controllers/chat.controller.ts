@@ -252,8 +252,8 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
         devices.map((device) =>
           sendNotification(
             device.fcmToken,
-            "New Chat Request",
-            `${senderName} sent you a chat request`,
+            "New FrothChat Request",
+            `${senderName} sent you a Frothchat request`,
             room._id.toString()
           )
         )
