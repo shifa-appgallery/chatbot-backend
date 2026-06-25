@@ -58,7 +58,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         socket.to(roomId).emit("messages_read", {
           userId,
           roomId,
-          messageIds
+          messageIds,
+          readBy: {
+                userId,
+                readAt: new Date()
+              }
         });
       }
 
