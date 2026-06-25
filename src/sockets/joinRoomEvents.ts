@@ -76,13 +76,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           messageIds,
           readBy: {
             userId,
-            readAt: new Date()
-          },
-          senderName: lastSender
-            ? `${lastSender.first_Name} ${lastSender.last_name || ""}`.trim()
-            : "",
+            readAt: new Date(),
+            senderName: lastSender
+              ? `${lastSender.first_Name} ${lastSender.last_name || ""}`.trim()
+              : "",
 
-          senderProfile
+            senderProfile
+          },
+
         });
       }
 

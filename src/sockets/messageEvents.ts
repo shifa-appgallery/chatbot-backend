@@ -842,11 +842,15 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         userId,
         roomId,
         messageIds,
-        readBy: { userId, readAt: new Date() },
-        senderName: lastSender
-          ? `${lastSender.first_Name} ${lastSender.last_name || ""}`.trim()
-          : "",
-        senderProfile
+        readBy: {
+          userId,
+          readAt: new Date(),
+          senderName: lastSender
+            ? `${lastSender.first_Name} ${lastSender.last_name || ""}`.trim()
+            : "",
+          senderProfile
+        },
+
       });
 
       await ChatRooms.findOneAndUpdate(
