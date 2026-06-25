@@ -10,7 +10,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     socket.to(roomId).emit("typing", {
       userId: socket.user?._id,
       senderName: `${socket.user?.first_name} ${socket.user?.last_name}`,
-      senderProfile: `${process.env.PROFILE_URL}${socket.user?.profile_picture}`,
+      senderProfile: socket.user?.profile_picture
+        ? `${process.env.PROFILE_URL}${socket.user.profile_picture}`
+        : null,
       typing: true
     });
   });
@@ -19,7 +21,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     socket.to(roomId).emit("typing", {
       userId: socket.user?._id,
       senderName: `${socket.user?.first_name} ${socket.user?.last_name}`,
-      senderProfile: `${process.env.PROFILE_URL}${socket.user?.profile_picture}`,
+      senderProfile: socket.user?.profile_picture
+        ? `${process.env.PROFILE_URL}${socket.user.profile_picture}`
+        : null,
       typing: false
     });
   });
