@@ -823,11 +823,30 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         }
       );
 
+      const room = await ChatRooms.findById(roomId).select(
+        "participants lastMessage"
+      );
+
+      const lastSender = room?.participants?.find(
+        (p: any) =>
+          String(p.userId) === String(room?.lastMessage?.senderId)
+      );
+
+      const senderProfile = lastSender?.profile_picture
+        ? lastSender.profile_picture.startsWith("http")
+          ? lastSender.profile_picture
+          : `${process.env.PROFILE_URL}${lastSender.profile_picture}`
+        : null;
+
       socket.to(roomId.toString()).emit("messages_read", {
         userId,
         roomId,
         messageIds,
-        readBy: { userId, readAt: new Date() }
+        readBy: { userId, readAt: new Date() },
+        senderName: lastSender
+          ? `${lastSender.first_Name} ${lastSender.last_name || ""}`.trim()
+          : "",
+        senderProfile
       });
 
       await ChatRooms.findOneAndUpdate(
