@@ -807,78 +807,114 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     const userId = String(socket.user?._id);
 
     const unreadMessages = await Messages.find(
-      { roomId, "readBy.userId": { $ne: userId } },
-      { _id: 1 } // only fetch _id
+      {
+        roomId,
+        "readBy.userId": { $ne: userId }
+      },
+      { _id: 1 }
     );
 
-    const messageIds = unreadMessages.map(m => String(m._id));
+    const messageIds = unreadMessages.map((m) =>
+      String(m._id)
+    );
 
     if (messageIds.length > 0) {
+      const readAt = new Date();
+
       await Messages.updateMany(
         { _id: { $in: messageIds } },
         {
           $addToSet: {
-            readBy: { userId, readAt: new Date() }
+            readBy: {
+              userId,
+              readAt
+            }
           }
         }
       );
 
-      const room = await ChatRooms.findById(roomId).select(
-        "participants lastMessage"
-      );
+      const room = await ChatRooms.findById(roomId)
+        .select("participants lastMessage")
+        .lean();
 
-      const lastSender = room?.participants?.find(
+      const currentUser = room?.participants?.find(
         (p: any) =>
-          String(p.userId) === String(room?.lastMessage?.senderId)
+          String(p.userId) === String(userId)
       );
 
-      const senderProfile = lastSender?.profile_picture
-        ? lastSender.profile_picture.startsWith("http")
-          ? lastSender.profile_picture
-          : `${process.env.PROFILE_URL}${lastSender.profile_picture}`
+      const userProfile = currentUser?.profile_picture
+        ? currentUser.profile_picture.startsWith("http")
+          ? currentUser.profile_picture
+          : `${process.env.PROFILE_URL}${currentUser.profile_picture}`
         : null;
 
       socket.to(roomId.toString()).emit("messages_read", {
         userId,
         roomId,
         messageIds,
-        readBy: {
-          userId,
-          readAt: new Date(),
-          senderName: lastSender
-            ? `${lastSender.first_Name} ${lastSender.last_name || ""}`.trim()
-            : "",
-          senderProfile
-        },
-
+        readBy: [
+          {
+            userId,
+            readAt,
+            userName: currentUser
+              ? `${currentUser.first_Name} ${currentUser.last_name || ""}`.trim()
+              : "",
+            userProfile
+          }
+        ]
       });
 
       await ChatRooms.findOneAndUpdate(
-        { _id: roomId, "participants.userId": userId },
-        { $set: { "participants.$.unreadCount": 0 } }
+        {
+          _id: roomId,
+          "participants.userId": userId
+        },
+        {
+          $set: {
+            "participants.$.unreadCount": 0
+          }
+        }
       );
 
-      const updatedRoom = await ChatRooms.findById(roomId).select("participants lastMessage");
+      const updatedRoom = await ChatRooms.findById(roomId)
+        .select("participants lastMessage");
 
       const presenceList = await UserPresence.find({
-        userId: { $in: updatedRoom?.participants.map((p: any) => String(p.userId)) }
+        userId: {
+          $in: updatedRoom?.participants.map(
+            (p: any) => String(p.userId)
+          )
+        }
       });
 
-      presenceList.forEach(presence => {
-        const userParticipant = updatedRoom?.participants.find(
-          (p: any) => String(p.userId) === String(presence.userId)
-        );
+      presenceList.forEach((presence) => {
+        const userParticipant =
+          updatedRoom?.participants.find(
+            (p: any) =>
+              String(p.userId) ===
+              String(presence.userId)
+          );
 
-        presence.socketIds?.forEach((socketId: string) => {
-          io.to(socketId).emit("room_updated", {
-            roomId,
-            unreadCount: userParticipant?.unreadCount || 0,
-            lastMessage: updatedRoom?.lastMessage?.text || "",
-            lastMessageDate: updatedRoom?.lastMessage?.createdAt || null,
-            groupName: updatedRoom?.name,
-            groupImage: updatedRoom?.groupImage
-          });
-        });
+        presence.socketIds?.forEach(
+          (socketId: string) => {
+            io.to(socketId).emit(
+              "room_updated",
+              {
+                roomId,
+                unreadCount:
+                  userParticipant?.unreadCount || 0,
+                lastMessage:
+                  updatedRoom?.lastMessage?.text || "",
+                lastMessageDate:
+                  updatedRoom?.lastMessage?.createdAt ||
+                  null,
+                groupName: updatedRoom?.name,
+                groupImage:
+                  updatedRoom?.groupImage
+              }
+            );
+          }
+        );
       });
     }
   });

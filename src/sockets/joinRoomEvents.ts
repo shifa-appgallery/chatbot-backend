@@ -26,8 +26,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         { _id: roomId, "participants.userId": userId },
         {
           $set: {
-            "participants.$.unreadCount": 0
-          }
+            "participants.$.unreadCount": 0,
+          },
         }
       );
 
@@ -35,60 +35,66 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         {
           roomId,
           senderId: { $ne: userId },
-          "readBy.userId": { $ne: userId }
+          "readBy.userId": { $ne: userId },
         },
         { _id: 1 }
       );
 
-      const messageIds = unreadMessages.map(m => String(m._id));
+      const messageIds = unreadMessages.map((m) =>
+        String(m._id)
+      );
 
       if (messageIds.length > 0) {
+        const readAt = new Date();
+
         await Messages.updateMany(
           { _id: { $in: messageIds } },
           {
             $addToSet: {
               readBy: {
                 userId,
-                readAt: new Date()
-              }
-            }
+                readAt,
+              },
+            },
           }
         );
 
-        const room = await ChatRooms.findById(roomId).select(
-          "participants lastMessage"
-        );
+        const room = await ChatRooms.findById(roomId)
+          .select("participants")
+          .lean();
 
-        const lastSender = room?.participants?.find(
+        const currentUser = room?.participants?.find(
           (p: any) =>
-            String(p.userId) === String(room?.lastMessage?.senderId)
+            String(p.userId) === String(userId)
         );
 
-        const senderProfile = lastSender?.profile_picture
-          ? lastSender.profile_picture.startsWith("http")
-            ? lastSender.profile_picture
-            : `${process.env.PROFILE_URL}${lastSender.profile_picture}`
+        const userProfile = currentUser?.profile_picture
+          ? currentUser.profile_picture.startsWith("http")
+            ? currentUser.profile_picture
+            : `${process.env.PROFILE_URL}${currentUser.profile_picture}`
           : null;
 
         socket.to(roomId).emit("messages_read", {
           userId,
           roomId,
           messageIds,
-          readBy: {
-            userId,
-            readAt: new Date(),
-            senderName: lastSender
-              ? `${lastSender.first_Name} ${lastSender.last_name || ""}`.trim()
-              : "",
-
-            senderProfile
-          },
-
+          readBy: [
+            {
+              userId,
+              readAt,
+              userName: currentUser
+                ? `${currentUser.first_Name} ${currentUser.last_name || ""
+                  }`.trim()
+                : "",
+              userProfile,
+            },
+          ],
         });
       }
 
-      console.log(`User ${userId} joined room ${roomId}`);
-
+      console.log(
+        `User ${userId} joined room ${roomId}`
+      );
     } catch (err) {
       console.error("join_room error:", err);
     }
