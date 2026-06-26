@@ -9,9 +9,9 @@ export const sendNotification = async (
   unreadCount?: number
 ) => {
   const accessToken = await getAccessToken();
-console.log(
-  `${process.env.FRONTEND_URL}?roomId=${roomId}`
-);
+  console.log(
+    `${process.env.FRONTEND_URL}?roomId=${roomId}`
+  );
   await axios.post(
     `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`,
     {
@@ -40,13 +40,13 @@ console.log(
         android: {
           priority: "high",
           notification: {
-            tag: roomId || Date.now().toString(),
+            tag: `${roomId}_${Date.now()}`,
           },
         },
 
         apns: {
           headers: {
-            "apns-collapse-id": roomId || Date.now().toString(),
+            "apns-collapse-id": `${roomId}_${Date.now()}`,
             "apns-priority": "10",
           },
           payload: {
