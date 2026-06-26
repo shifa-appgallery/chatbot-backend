@@ -1758,8 +1758,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         devices.map((device) =>
           sendNotification(
             device.fcmToken,
-            "Frothchat Request Accepted",
-            `${receiver.first_Name} ${receiver.last_name} accepted your Frothchat request`,
+            "FrothChat Request Accepted",
+            `${receiver.first_Name} ${receiver.last_name} accepted your FrothChat request`,
             roomId
           )
         )
@@ -1811,8 +1811,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         devices.map((device) =>
           sendNotification(
             device.fcmToken,
-            "Frothchat Request Rejected",
-            `${receiver.first_Name} ${receiver.last_name} rejected your Frothchat request`,
+            "FrothChat Request Rejected",
+            `${receiver.first_Name} ${receiver.last_name} rejected your FrothChat request`,
             roomId
           )
         )
