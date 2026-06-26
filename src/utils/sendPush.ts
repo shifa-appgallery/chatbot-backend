@@ -18,10 +18,10 @@ console.log(
       message: {
         token: deviceToken,
 
-        // notification: {
-        //   title,
-        //   body
-        // },
+        notification: {
+          title,
+          body
+        },
 
         data: {
           title,
@@ -39,10 +39,9 @@ console.log(
 
         android: {
           priority: "high",
-          // notification: {
-          //   tag: roomId || Date.now().toString(),
-          // },
-
+          notification: {
+            tag: roomId || Date.now().toString(),
+          },
         },
 
         apns: {

@@ -49,12 +49,12 @@ const chatRoomsSchema = new mongoose.Schema({
       },
 
       profile_picture: {
-        type: String, // ✅ NEW
+        type: String,
         default: null
       },
 
       unreadCount: {
-        type: Number, // ✅ NEW
+        type: Number,
         default: 0
       },
 

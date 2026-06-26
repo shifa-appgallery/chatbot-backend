@@ -56,50 +56,36 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     }).select("participants lastMessage");
 
     rooms.forEach(room => {
-
       const userParticipant = room.participants.find(
         (p: any) => String(p.userId) === userId
       );
-
       const lastSender = room.participants.find(
         (p: any) =>
           String(p.userId) === String(room.lastMessage?.senderId)
       );
-
       const senderProfile = lastSender?.profile_picture
         ? lastSender.profile_picture.startsWith("http")
           ? lastSender.profile_picture
           : `${process.env.PROFILE_URL}${lastSender.profile_picture}`
         : null;
-
       socket.emit("room_updated", {
         roomId: room._id,
-
         senderName: lastSender
           ? `${lastSender.first_Name} ${lastSender.last_name || ""}`.trim()
           : "",
-
         senderProfile,
-
         unreadCount: userParticipant?.unreadCount || 0,
-
         lastMessage: room.lastMessage?.text || "",
-
         lastMessageDate: room.lastMessage?.createdAt || null,
       });
-
     });
   })();
 
   socket.on("send_message", async ({ roomId, message, caption, messageType, mediaUrl, poll, replyMessageId, isForwarded = false, mentions = [] }: SendMessagePayload) => {
     try {
-
       const senderId = String(socket.user?._id);
-
       const room = await ChatRooms.findById(roomId);
-
       if (!room) return;
-
       const textContent =
         messageType === MESSAGE_TYPES.Image ||
           messageType === MESSAGE_TYPES.Video
@@ -109,40 +95,30 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         !room.isGroup &&
         room.chatRequestStatus !== "accepted"
       ) {
-
         if (
           String(room.chatRequestSenderId) === senderId
         ) {
-
           socket.emit("error_message", {
             message:
               "Chat request not accepted yet"
           });
-
           return;
         }
       }
-
-
       const senderParticipant =
         room.participants.find(
           (p: any) =>
             String(p.userId) === senderId
         );
-
       if (!senderParticipant) {
-
         socket.emit("error_message", {
           message:
             "You are not part of this room"
         });
-
         return;
       }
-
       const senderName =
         `${senderParticipant.first_Name} ${senderParticipant.last_name}`;
-
       const senderProfile =
         senderParticipant?.profile_picture
           ? senderParticipant.profile_picture.startsWith(
@@ -159,17 +135,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       let replyMessageData = null;
 
       if (replyMessageId) {
-
         const parentMessage: any =
           await Messages.findById(replyMessageId);
-
         // SECURITY CHECK
         if (
           parentMessage &&
           String(parentMessage.roomId) ===
           String(roomId)
         ) {
-
           replyMessageData = {
             messageId: parentMessage._id,
             senderId: parentMessage.senderId,
@@ -184,7 +157,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // =========================
       // MENTION VALIDATION
       // =========================
-
 
       const safeMentions =
         Array.isArray(mentions)
@@ -311,18 +283,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           mediaUrl || null,
         senderName,
         senderProfile,
-
         isForwarded,
-
         poll:
           messageType ===
             MESSAGE_TYPES.POLL
             ? poll
             : null,
-
         replyMessage:
           replyMessageData,
-
         mentions:
           finalMentions
       });
@@ -336,10 +304,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         mentions: finalMentions,
         senderName,
         senderProfile,
-
         isForwarded:
           msg.isForwarded || false,
-
         displayMessage:
           messageType === MESSAGE_TYPES.Image
             ? caption
@@ -351,13 +317,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 : "Video"
               : messageType === MESSAGE_TYPES.POLL
                 ? `${poll?.question || "Poll"}`
-
                 : messageType === MESSAGE_TYPES.System
                   ? message
-
                   : message
       };
-
       // =========================
       // RECEIVERS
       // =========================
@@ -393,23 +356,18 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         );
 
       for (const userId of receiverIds) {
-
         const presence =
           presenceMap.get(userId);
-
         if (
           !presence ||
           !presence.isOnline
         ) {
-
           offlineUsers.push(userId);
-
         } else if (
           String(
             presence.activeRoomId
           ) !== String(roomId)
         ) {
-
           usersInOtherRoom.push(userId);
         }
       }
@@ -476,10 +434,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // =========================
 
       for (const userId of receiverIds) {
-
         const presence =
           presenceMap.get(userId);
-
         const userParticipant =
           updatedRoom?.participants?.find(
             (p: any) =>
@@ -488,29 +444,23 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           );
 
         const payload = {
-
           roomId,
-
           senderName,
           senderProfile,
           unreadCount:
             userParticipant?.unreadCount || 0,
-
           lastMessage:
             updatedRoom?.lastMessage?.text || "",
-
           lastMessageDate:
             updatedRoom?.lastMessage?.createdAt ||
             null,
           groupName: updatedRoom?.name,
           groupImage: updatedRoom?.groupImage
         };
-
         if (
           presence &&
           presence.socketIds?.length > 0
         ) {
-
           presence.socketIds.forEach(
             (socketId: string) => {
 
@@ -535,15 +485,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         "room_updated",
         {
           roomId,
-
           senderName,
           senderProfile,
-
           unreadCount: 0,
-
           lastMessage:
             updatedRoom?.lastMessage?.text || "",
-
           lastMessageDate:
             updatedRoom?.lastMessage?.createdAt ||
             null,
@@ -572,7 +518,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 String(id)
               )
           },
-
           roomId:
             new mongoose.Types.ObjectId(
               roomId
@@ -608,17 +553,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // SOCKET NOTIFICATIONS
       allowedPresence.forEach(
         presence => {
-
           const userParticipant =
             updatedRoom?.participants.find(
               (p: any) =>
                 String(p.userId) ===
                 String(presence.userId)
             );
-
           let displayMessage =
             formattedMsg.displayMessage;
-
           // REPLY NOTIFICATION
           if (
             replyMessageData &&
@@ -629,20 +571,16 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               presence.userId
             )
           ) {
-
             displayMessage =
               messageType ===
                 MESSAGE_TYPES.Image
                 ? `${senderName} replied with a photo`
-
                 : messageType ===
                   MESSAGE_TYPES.Video
                   ? `${senderName} replied with a video`
-
                   : messageType ===
                     MESSAGE_TYPES.POLL
                     ? `${senderName} replied with a poll`
-
                     : `${senderName} replied: ${textContent}`;
           }
 
@@ -652,23 +590,19 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               (m: any) =>
                 String(m.userId) === String(presence.userId)
             );
-
           if (isMentionAll) {
             displayMessage = `${senderName} mentioned everyone: ${textContent}`;
           }
           else if (isMentioned) {
             displayMessage = `${senderName} mentioned you: ${textContent}`;
           }
-
           if (
             String(
               presence.activeRoomId
             ) !== String(roomId)
           ) {
-
             presence.socketIds.forEach(
               (socketId: string) => {
-
                 io.to(socketId).emit(
                   "new_message_notification",
                   {
@@ -676,7 +610,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                     senderId,
                     senderName,
                     displayMessage,
-
                     unreadCount:
                       userParticipant?.unreadCount ||
                       0
@@ -698,12 +631,9 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           },
           isActive: true
         });
-
       await Promise.all(
-
         devices.map(
           async device => {
-
             const userParticipant =
               updatedRoom?.participants.find(
                 (p: any) =>
@@ -711,7 +641,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               );
             let displayMessage =
               formattedMsg.displayMessage;
-
             // REPLY PUSH
             if (
               replyMessageData &&
@@ -720,7 +649,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               ) ===
               String(device.userId)
             ) {
-
               displayMessage =
                 messageType === MESSAGE_TYPES.Image
                   ? caption
@@ -741,7 +669,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 (m: any) =>
                   String(m.userId) === String(device.userId)
               );
-
             if (isMentionAll) {
               displayMessage = `${senderName} mentioned everyone: ${textContent}`;
             }
@@ -764,7 +691,6 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       );
 
     } catch (err) {
-
       console.error(
         "send_message error:",
         err
