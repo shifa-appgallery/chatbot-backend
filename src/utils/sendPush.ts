@@ -20,7 +20,8 @@ export const sendNotification = async (
 
         notification: {
           title,
-          body
+          body,
+          click_action: `${process.env.FRONTEND_URL}?roomId=${roomId}`,
         },
 
         data: {
