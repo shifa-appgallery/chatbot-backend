@@ -20,8 +20,7 @@ export const sendNotification = async (
 
         notification: {
           title,
-          body,
-          click_action: `${process.env.FRONTEND_URL}?roomId=${roomId}`,
+          body
         },
 
         data: {
@@ -29,15 +28,10 @@ export const sendNotification = async (
           body,
           roomId: roomId || "",
           type: "chat",
-          unreadCount: String(unreadCount),
-          link: `${process.env.FRONTEND_URL}?roomId=${roomId}`,
+          unreadCount: String(unreadCount)
         },
 
         webpush: {
-          notification: {
-            title,
-            body,
-          },
           fcmOptions: {
             link: `${process.env.FRONTEND_URL}?roomId=${roomId}`,
           },
