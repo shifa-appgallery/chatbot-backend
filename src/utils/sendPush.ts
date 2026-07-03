@@ -48,16 +48,11 @@ export const sendNotification = async (
 
           apns: {
             headers: {
-              // "apns-collapse-id": `${roomId}_${Date.now()}`,
               "apns-priority": "10",
             },
             payload: {
               aps: {
-                alert: {
-                  title,
-                  body,
-                },
-                badge: 1,
+                badge: unreadCount,
                 sound: "default",
               },
             },
