@@ -8,64 +8,82 @@ export const sendNotification = async (
   roomId: string,
   unreadCount?: number
 ) => {
-  const accessToken = await getAccessToken();
-  console.log(
-    `${process.env.FRONTEND_URL}?roomId=${roomId}`
-  );
-  await axios.post(
-    `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`,
-    {
-      message: {
-        token: deviceToken,
+  try {
+    const accessToken = await getAccessToken();
 
-        notification: {
-          title,
-          body
-        },
+    console.log(`${process.env.FRONTEND_URL}?roomId=${roomId}`);
+    console.log("PROJECT_ID:", PROJECT_ID);
 
-        data: {
-          title,
-          body,
-          roomId: roomId || "",
-          type: "chat",
-          unreadCount: String(unreadCount)
-        },
+    const response = await axios.post(
+      `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`,
+      {
+        message: {
+          token: deviceToken,
 
-        webpush: {
-          fcmOptions: {
-            link: `${process.env.FRONTEND_URL}?roomId=${roomId}`,
-          },
-        },
-
-        android: {
-          priority: "high",
           notification: {
-            tag: `${roomId}_${Date.now()}`,
+            title,
+            body,
           },
-        },
 
-        apns: {
-          headers: {
-            "apns-collapse-id": `${roomId}_${Date.now()}`,
-            "apns-priority": "10",
+          data: {
+            title,
+            body,
+            roomId: roomId || "",
+            type: "chat",
+            unreadCount: String(unreadCount),
           },
-          payload: {
-            aps: {
-              alert: {
-                title,
-                body,
+
+          webpush: {
+            fcmOptions: {
+              link: `${process.env.FRONTEND_URL}?roomId=${roomId}`,
+            },
+          },
+
+          android: {
+            priority: "high",
+            notification: {
+              tag: `${roomId}_${Date.now()}`,
+            },
+          },
+
+          apns: {
+            headers: {
+              "apns-collapse-id": `${roomId}_${Date.now()}`,
+              "apns-priority": "10",
+            },
+            payload: {
+              aps: {
+                alert: {
+                  title,
+                  body,
+                },
+                sound: "default",
               },
-              sound: "default",
             },
           },
         },
       },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log("FCM Success:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error("========== FCM ERROR ==========");
+    console.error("Status:", error.response?.status);
+    console.error("Status Text:", error.response?.statusText);
+
+    // This is the most important log
+    console.dir(error.response?.data, { depth: null });
+
+    console.error("Message:", error.message);
+    console.error("================================");
+
+    throw error;
+  }
 };
