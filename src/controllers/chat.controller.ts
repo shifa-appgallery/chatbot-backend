@@ -14,6 +14,7 @@ import { MESSAGE_TYPES } from "../constant/enum";
 import Messages from "../models/Messages";
 import { sendNotification } from "../utils/sendPush";
 import { Server } from "socket.io";
+import { Fcm } from "../models/mysql/Fcm";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -240,9 +241,10 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
     if (!isGroup) {
       const receiverId = formattedParticipantIds[0];
 
-      const devices = await UserDevice.find({
-        userId: receiverId,
-        isActive: true
+      const devices = await Fcm.findAll({
+        where: {
+          user_id: Number(receiverId),
+        },
       });
 
       const senderName =
@@ -251,7 +253,7 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
       await Promise.all(
         devices.map((device) =>
           sendNotification(
-            device.fcmToken,
+            device.device_token,
             "New FrothChat Request",
             `${senderName} sent you a FrothChat request`,
             room._id.toString()

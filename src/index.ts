@@ -46,6 +46,7 @@ app.set("io", io);
 
 import { User } from "./models/mysql/User";
 import { initTeamModel } from "./models/mysql/Teams";
+import { initFcmModel } from "./models/mysql/Fcm";
 
 io.use((socket, next) => {
   next();
@@ -101,6 +102,7 @@ async function bootstrap() {
     initUserModel();
     initTeamUsersModel();
     initTeamModel();
+    initFcmModel();
 
     await connectDB();
     console.log("MongoDB connected");

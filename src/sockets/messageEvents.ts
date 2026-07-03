@@ -2,12 +2,13 @@ import { Server } from "socket.io";
 import ChatRooms from "../models/ChatRooms";
 import Messages from "../models/Messages";
 import UserPresence from "../models/UserPresence";
-import UserDevice from "../models/UserDevice";
 import UserPreference from "../models/UserPreference";
 import { AuthenticatedSocket } from "../types/AuthenticatedSocket";
 import { sendNotification } from "../utils/sendPush";
 import mongoose from "mongoose";
 import { MESSAGE_TYPES } from "../constant/enum";
+import { Fcm } from "../models/mysql/Fcm";
+import { Op } from "sequelize";
 
 interface SendMessagePayload {
   roomId: string;
@@ -624,20 +625,20 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // PUSH NOTIFICATIONS
       // =========================
 
-      const devices =
-        await UserDevice.find({
-          userId: {
-            $in: allowedUsers
+      const devices = await Fcm.findAll({
+        where: {
+          user_id: {
+            [Op.in]: allowedUsers.map(Number),
           },
-          isActive: true
-        });
+        },
+      });
       await Promise.all(
         devices.map(
           async device => {
             const userParticipant =
               updatedRoom?.participants.find(
                 (p: any) =>
-                  String(p.userId) === String(device.userId)
+                  String(p.userId) === String(device.user_id)
               );
             let displayMessage =
               formattedMsg.displayMessage;
@@ -647,7 +648,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               String(
                 replyMessageData.senderId
               ) ===
-              String(device.userId)
+              String(device.user_id)
             ) {
               displayMessage =
                 messageType === MESSAGE_TYPES.Image
@@ -667,7 +668,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             const isMentioned =
               finalMentions.some(
                 (m: any) =>
-                  String(m.userId) === String(device.userId)
+                  String(m.userId) === String(device.user_id)
               );
             if (isMentionAll) {
               displayMessage = `${senderName} mentioned everyone: ${textContent}`;
@@ -679,13 +680,20 @@ export default (socket: AuthenticatedSocket, io: Server) => {
               ? `${senderName} (${room.name || "Group"})`
               : senderName;
 
-            return sendNotification(
-              device.fcmToken,
-              notificationTitle,
-              displayMessage,
-              roomId,
-              userParticipant?.unreadCount || 0
-            );
+            try {
+              await sendNotification(
+                device.device_token,
+                notificationTitle,
+                displayMessage,
+                roomId,
+                userParticipant?.unreadCount || 0
+              );
+            } catch (error) {
+              console.error(
+                `Failed to send notification to user ${device.user_id}`,
+                error
+              );
+            }
           }
         )
       );
@@ -1675,20 +1683,31 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       room.chatRequestStatus = "accepted";
       await room.save();
 
-      const devices = await UserDevice.find({
-        userId: senderId,
-        isActive: true,
+      const devices = await Fcm.findAll({
+        where: {
+          user_id: Number(senderId),
+        },
       });
 
+
       await Promise.all(
-        devices.map((device) =>
-          sendNotification(
-            device.fcmToken,
-            "FrothChat Request Accepted",
-            `${receiver.first_Name} ${receiver.last_name} accepted your FrothChat request`,
-            roomId
-          )
-        )
+        devices.map(async (device) => {
+          if (!device.device_token) return;
+
+          try {
+            await sendNotification(
+              device.device_token,
+              "FrothChat Request Accepted",
+              `${receiver.first_Name} ${receiver.last_name} accepted your FrothChat request`,
+              roomId
+            );
+          } catch (error) {
+            console.error(
+              `Failed to send notification to user ${device.user_id}`,
+              error
+            );
+          }
+        })
       );
 
       io.to(roomId.toString()).emit("chat_request_accepted", {
@@ -1728,20 +1747,30 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       room.chatRequestStatus = "rejected";
       await room.save();
 
-      const devices = await UserDevice.find({
-        userId: senderId,
-        isActive: true,
+      const devices = await Fcm.findAll({
+        where: {
+          user_id: Number(senderId),
+        },
       });
 
       await Promise.all(
-        devices.map((device) =>
-          sendNotification(
-            device.fcmToken,
-            "FrothChat Request Rejected",
-            `${receiver.first_Name} ${receiver.last_name} rejected your FrothChat request`,
-            roomId
-          )
-        )
+        devices.map(async (device) => {
+          if (!device.device_token) return;
+
+          try {
+            await sendNotification(
+              device.device_token,
+              "FrothChat Request Rejected",
+              `${receiver.first_Name} ${receiver.last_name} rejected your FrothChat request`,
+              roomId
+            );
+          } catch (error) {
+            console.error(
+              `Failed to send notification to user ${device.user_id}`,
+              error
+            );
+          }
+        })
       );
 
       io.to(roomId.toString()).emit("chat_request_rejected", {

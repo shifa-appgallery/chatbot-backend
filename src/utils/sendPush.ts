@@ -57,6 +57,7 @@ export const sendNotification = async (
                   title,
                   body,
                 },
+                badge: 1,
                 sound: "default",
               },
             },
