@@ -48,7 +48,7 @@ export const sendNotification = async (
 
           apns: {
             headers: {
-              "apns-collapse-id": `${roomId}_${Date.now()}`,
+              // "apns-collapse-id": `${roomId}_${Date.now()}`,
               "apns-priority": "10",
             },
             payload: {
