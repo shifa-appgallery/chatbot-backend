@@ -633,7 +633,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         },
         order: [["id", "DESC"]], // Latest records first
       });
-
+      console.log("Devices:", devices.map(d => d.toJSON()));
       // Keep only the latest token for each user + device type
       const latestDevices = Array.from(
         new Map(
