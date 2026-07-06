@@ -1701,14 +1701,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       });
 
       // Keep only the latest token for each device type
-      const latestDevices = Array.from(
+      const uniqueDevices = Array.from(
         new Map(
-          devices.map((device) => [device.device_type, device])
+          devices.map(device => [device.device_token, device])
         ).values()
       );
 
       await Promise.all(
-        latestDevices.map(async (device) => {
+        uniqueDevices.map(async (device) => {
           if (!device.device_token) return;
 
           try {
@@ -1772,14 +1772,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       });
 
       // Keep only the latest token for each device type
-      const latestDevices = Array.from(
+      const uniqueDevices = Array.from(
         new Map(
-          devices.map((device) => [device.device_type, device])
+          devices.map(device => [device.device_token, device])
         ).values()
       );
 
       await Promise.all(
-        latestDevices.map(async (device) => {
+        uniqueDevices.map(async (device) => {
           if (!device.device_token) return;
 
           try {
