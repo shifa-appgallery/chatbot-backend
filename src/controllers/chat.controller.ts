@@ -245,13 +245,21 @@ export const createRoom = async (req: AuthRequest, res: Response) => {
         where: {
           user_id: Number(receiverId),
         },
+        order: [["id", "DESC"]], // Latest records first
       });
+
+      // Keep only the latest token for each device type
+      const latestDevices = Array.from(
+        new Map(
+          devices.map((device) => [device.device_type, device])
+        ).values()
+      );
 
       const senderName =
         `${currentUser.first_name} ${currentUser.last_name}`;
 
       await Promise.all(
-        devices.map((device) =>
+        latestDevices.map((device) =>
           sendNotification(
             device.device_token,
             "New FrothChat Request",

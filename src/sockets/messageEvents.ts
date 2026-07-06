@@ -631,71 +631,76 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             [Op.in]: allowedUsers.map(Number),
           },
         },
+        order: [["id", "DESC"]], // Latest records first
       });
+
+      // Keep only the latest token for each user + device type
+      const latestDevices = Array.from(
+        new Map(
+          devices.map((device) => [
+            `${device.user_id}_${device.device_type}`,
+            device,
+          ])
+        ).values()
+      );
+
       await Promise.all(
-        devices.map(
-          async device => {
-            const userParticipant =
-              updatedRoom?.participants.find(
-                (p: any) =>
-                  String(p.userId) === String(device.user_id)
-              );
-            let displayMessage =
-              formattedMsg.displayMessage;
-            // REPLY PUSH
-            if (
-              replyMessageData &&
-              String(
-                replyMessageData.senderId
-              ) ===
-              String(device.user_id)
-            ) {
-              displayMessage =
-                messageType === MESSAGE_TYPES.Image
+        latestDevices.map(async (device) => {
+          const userParticipant = updatedRoom?.participants.find(
+            (p: any) => String(p.userId) === String(device.user_id)
+          );
+
+          let displayMessage = formattedMsg.displayMessage;
+
+          // REPLY PUSH
+          if (
+            replyMessageData &&
+            String(replyMessageData.senderId) === String(device.user_id)
+          ) {
+            displayMessage =
+              messageType === MESSAGE_TYPES.Image
+                ? caption
+                  ? `${senderName} replied: ${caption}`
+                  : `${senderName} replied with a photo`
+                : messageType === MESSAGE_TYPES.Video
                   ? caption
                     ? `${senderName} replied: ${caption}`
-                    : `${senderName} replied with a photo`
-                  : messageType === MESSAGE_TYPES.Video
-                    ? caption
-                      ? `${senderName} replied: ${caption}`
-                      : `${senderName} replied with a video`
-                    : messageType === MESSAGE_TYPES.POLL
-                      ? `${senderName} replied with a poll`
-                      : `${senderName} replied: ${textContent}`;
-            }
-
-            // MENTION PUSH
-            const isMentioned =
-              finalMentions.some(
-                (m: any) =>
-                  String(m.userId) === String(device.user_id)
-              );
-            if (isMentionAll) {
-              displayMessage = `${senderName} mentioned everyone: ${textContent}`;
-            }
-            else if (isMentioned) {
-              displayMessage = `${senderName} mentioned you: ${textContent}`;
-            }
-            const notificationTitle = room.isGroup
-              ? `${senderName} (${room.name || "Group"})`
-              : senderName;
-
-            try {
-              await sendNotification(
-                device.device_token,
-                notificationTitle,
-                displayMessage,
-                roomId,
-                userParticipant?.unreadCount || 0
-              );
-            } catch (error) {
-              console.error(
-                `Failed to send notification to user ${device.user_id}`,
-                error
-              );
-            }
+                    : `${senderName} replied with a video`
+                  : messageType === MESSAGE_TYPES.POLL
+                    ? `${senderName} replied with a poll`
+                    : `${senderName} replied: ${textContent}`;
           }
-        )
+
+          // MENTION PUSH
+          const isMentioned = finalMentions.some(
+            (m: any) => String(m.userId) === String(device.user_id)
+          );
+
+          if (isMentionAll) {
+            displayMessage = `${senderName} mentioned everyone: ${textContent}`;
+          } else if (isMentioned) {
+            displayMessage = `${senderName} mentioned you: ${textContent}`;
+          }
+
+          const notificationTitle = room.isGroup
+            ? `${senderName} (${room.name || "Group"})`
+            : senderName;
+
+          try {
+            await sendNotification(
+              device.device_token,
+              notificationTitle,
+              displayMessage,
+              roomId,
+              userParticipant?.unreadCount || 0
+            );
+          } catch (error) {
+            console.error(
+              `Failed to send notification to user ${device.user_id}`,
+              error
+            );
+          }
+        })
       );
 
     } catch (err) {
@@ -1687,11 +1692,18 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         where: {
           user_id: Number(senderId),
         },
+        order: [["id", "DESC"]],
       });
 
+      // Keep only the latest token for each device type
+      const latestDevices = Array.from(
+        new Map(
+          devices.map((device) => [device.device_type, device])
+        ).values()
+      );
 
       await Promise.all(
-        devices.map(async (device) => {
+        latestDevices.map(async (device) => {
           if (!device.device_token) return;
 
           try {
@@ -1751,10 +1763,18 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         where: {
           user_id: Number(senderId),
         },
+        order: [["id", "DESC"]],
       });
 
+      // Keep only the latest token for each device type
+      const latestDevices = Array.from(
+        new Map(
+          devices.map((device) => [device.device_type, device])
+        ).values()
+      );
+
       await Promise.all(
-        devices.map(async (device) => {
+        latestDevices.map(async (device) => {
           if (!device.device_token) return;
 
           try {
