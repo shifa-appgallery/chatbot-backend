@@ -9,7 +9,6 @@ import createRoomEvents from "./createRoomEvents";
 import deleteEvents from "./deleteEvents";
 
 export const chatHandler = (io: Server, socket: AuthenticatedSocket) => { 
-  console.log("User connected:", socket.user?._id);
 
   messageEvents(socket, io);
   typingEvents(socket, io);

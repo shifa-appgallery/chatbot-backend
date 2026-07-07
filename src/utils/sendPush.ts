@@ -11,9 +11,6 @@ export const sendNotification = async (
   try {
     const accessToken = await getAccessToken();
 
-    console.log(`${process.env.FRONTEND_URL}?roomId=${roomId}`);
-    console.log("PROJECT_ID:", PROJECT_ID);
-    console.log("Sending to token:", deviceToken);
     const response = await axios.post(
       `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`,
       {
@@ -67,7 +64,6 @@ export const sendNotification = async (
       }
     );
 
-    console.log("FCM Success:", response.data);
     return response.data;
   } catch (error: any) {
 
@@ -75,7 +71,6 @@ export const sendNotification = async (
       error.response?.data?.error?.details?.[0]?.errorCode;
 
     if (errorCode === "UNREGISTERED") {
-      console.log("FCM token is unregistered.");
       return;
     }
 

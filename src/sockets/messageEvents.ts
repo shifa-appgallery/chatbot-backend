@@ -633,22 +633,13 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         },
         order: [["id", "DESC"]], // Latest records first
       });
-      console.log("Devices:", devices.map(d => d.toJSON()));
       // Keep only the latest token for each user + device type
       const uniqueDevices = Array.from(
         new Map(
           devices.map(device => [device.device_token, device])
         ).values()
       );
-      console.log(
-        "Unique devices:",
-        uniqueDevices.map(d => ({
-          id: d.id,
-          user_id: d.user_id,
-          type: d.device_type,
-          token: d.device_token.substring(0, 20),
-        }))
-      );
+
       await Promise.all(
         uniqueDevices.map(async (device) => {
           const userParticipant = updatedRoom?.participants.find(
