@@ -2422,6 +2422,7 @@ export const getUserRequests = async (
 
     // STORE STATUS BY USER ID
     const requestStatusMap = new Map<string, string>();
+    const roomIdMap = new Map<string, string>();
 
     chats.forEach((chat: any) => {
 
@@ -2438,6 +2439,11 @@ export const getUserRequests = async (
         return;
       }
       const participantId = String(otherParticipant.userId);
+
+      roomIdMap.set(
+        participantId,
+        String(chat._id)
+      );
 
       if (chat.chatRequestStatus === "accepted") {
 
@@ -2483,7 +2489,13 @@ export const getUserRequests = async (
       requestStatus:
         requestStatusMap.get(
           String(user.id)
-        ) || "none"
+        ) || "none",
+        
+      roomId:
+        roomIdMap.get(
+          String(user.id)
+        ) || null
+
 
     }));
 
