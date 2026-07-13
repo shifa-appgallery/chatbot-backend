@@ -2440,16 +2440,16 @@ export const getUserRequests = async (
       }
       const participantId = String(otherParticipant.userId);
 
-      roomIdMap.set(
-        participantId,
-        String(chat._id)
-      );
-
       if (chat.chatRequestStatus === "accepted") {
 
         requestStatusMap.set(
           participantId,
           "friends"
+        );
+
+        roomIdMap.set(
+          participantId,
+          String(chat._id)
         );
 
       } else if (
@@ -2490,12 +2490,11 @@ export const getUserRequests = async (
         requestStatusMap.get(
           String(user.id)
         ) || "none",
-        
-      roomId:
+
+      _id:
         roomIdMap.get(
           String(user.id)
         ) || null
-
 
     }));
 
