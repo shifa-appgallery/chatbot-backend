@@ -2412,7 +2412,8 @@ export const getUserRequests = async (
 
     // GET ALL PERSONAL CHATS OF LOGGED IN USER
     const chats = await ChatRoom.find({
-      "participants.userId": loggedInUserId
+      "participants.userId": loggedInUserId,
+      isGroup: false
     }).select(`
        _id
       participants
