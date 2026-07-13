@@ -2414,16 +2414,11 @@ export const getUserRequests = async (
     const chats = await ChatRoom.find({
       "participants.userId": loggedInUserId,
       isGroup: false
-    }).select(`
-       _id
-      participants
-      chatRequestStatus
-      chatRequestSenderId
-    `);
+    });
 
     // STORE STATUS BY USER ID
     const requestStatusMap = new Map<string, string>();
-    const roomIdMap = new Map<string, string>();
+    const roomObjectMap = new Map<string, any>();
 
     chats.forEach((chat: any) => {
 
@@ -2448,9 +2443,9 @@ export const getUserRequests = async (
           "friends"
         );
 
-        roomIdMap.set(
+        roomObjectMap.set(
           participantId,
-          String(chat._id)
+          chat
         );
 
       } else if (
@@ -2492,8 +2487,8 @@ export const getUserRequests = async (
           String(user.id)
         ) || "none",
 
-      _id:
-        roomIdMap.get(
+      room:
+        roomObjectMap.get(
           String(user.id)
         ) || null
 
