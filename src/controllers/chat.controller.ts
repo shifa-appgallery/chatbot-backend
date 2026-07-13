@@ -2414,6 +2414,7 @@ export const getUserRequests = async (
     const chats = await ChatRoom.find({
       "participants.userId": loggedInUserId
     }).select(`
+       _id
       participants
       chatRequestStatus
       chatRequestSenderId
@@ -2436,7 +2437,6 @@ export const getUserRequests = async (
       if (!otherParticipant?.userId) {
         return;
       }
-
       const participantId = String(otherParticipant.userId);
 
       if (chat.chatRequestStatus === "accepted") {
