@@ -2606,9 +2606,7 @@ export const formatChatRoom = async (
 
     receiverName = `${user.first_Name} ${user.last_name}`;
 
-    receiverProfilePath = user.profile_picture
-      ? `${process.env.PROFILE_URL}${user.profile_picture}`
-      : null;
+    receiverProfilePath = getProfileUrl(user.profile_picture)
   }
 
   const receiverUserId =
@@ -2675,4 +2673,12 @@ export const formatChatRoom = async (
     chatRequestStatus: room.chatRequestStatus,
     chatRequestSenderId: room.chatRequestSenderId
   };
+};
+
+const getProfileUrl = (path?: string | null) => {
+  if (!path) return null;
+
+  return path.startsWith("http")
+    ? path
+    : `${process.env.PROFILE_URL}${path}`;
 };
