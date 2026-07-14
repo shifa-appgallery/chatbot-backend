@@ -2420,56 +2420,62 @@ export const getUserRequests = async (
     const requestStatusMap = new Map<string, string>();
     const roomObjectMap = new Map<string, any>();
 
-    chats.forEach((chat: any) => {
+    await Promise.all(
+      chats.map(async (chat: any) => {
 
-      if (!chat?.participants?.length) {
-        return;
-      }
+        if (!chat?.participants?.length) {
+          return;
+        }
 
-      const otherParticipant = chat.participants.find(
-        (participant: any) =>
-          String(participant.userId) !== loggedInUserId
-      );
-
-      if (!otherParticipant?.userId) {
-        return;
-      }
-      const participantId = String(otherParticipant.userId);
-
-      if (chat.chatRequestStatus === "accepted") {
-
-        requestStatusMap.set(
-          participantId,
-          "friends"
+        const otherParticipant = chat.participants.find(
+          (participant: any) =>
+            String(participant.userId) !== loggedInUserId
         );
 
-        roomObjectMap.set(
-          participantId,
-          chat
-        );
+        if (!otherParticipant?.userId) {
+          return;
+        }
 
-      } else if (
-        chat.chatRequestStatus === "pending"
-      ) {
+        const participantId = String(otherParticipant.userId);
 
-        requestStatusMap.set(
-          participantId,
-          "requested"
-        );
-
-      } else {
-
-        if (!requestStatusMap.has(participantId)) {
+        if (chat.chatRequestStatus === "accepted") {
 
           requestStatusMap.set(
             participantId,
-            "none"
+            "friends"
           );
 
-        }
-      }
+          const formattedRoom = await formatChatRoom(
+            chat,
+            loggedInUserId
+          );
 
-    });
+          roomObjectMap.set(
+            participantId,
+            formattedRoom
+          );
+
+        } else if (chat.chatRequestStatus === "pending") {
+
+          requestStatusMap.set(
+            participantId,
+            "requested"
+          );
+
+        } else {
+
+          if (!requestStatusMap.has(participantId)) {
+
+            requestStatusMap.set(
+              participantId,
+              "none"
+            );
+
+          }
+        }
+
+      })
+    );
 
     // FINAL RESPONSE
     const finalData = users.map((user: any) => ({
@@ -2569,4 +2575,104 @@ export const deleteGroup = async (req: AuthRequest, res: Response) => {
       message: "Internal server error",
     });
   }
+};
+
+export const formatChatRoom = async (
+  room: any,
+  userId: string
+) => {
+
+  const lastMsg = await Message.findOne({
+    roomId: room._id,
+    isDeleted: { $ne: true },
+    deletedFor: {
+      $not: { $elemMatch: { userId } }
+    }
+  }).sort({ createdAt: -1 });
+
+  const currentUserParticipant = room.participants.find(
+    (p: any) => p.userId === userId
+  );
+
+  const otherParticipants = room.participants.filter(
+    (p: any) => p.userId !== userId
+  );
+
+  let receiverName = "";
+  let receiverProfilePath = null;
+
+  if (!room.isGroup && otherParticipants.length > 0) {
+    const user = otherParticipants[0];
+
+    receiverName = `${user.first_Name} ${user.last_name}`;
+
+    receiverProfilePath = user.profile_picture
+      ? `${process.env.PROFILE_URL}${user.profile_picture}`
+      : null;
+  }
+
+  const receiverUserId =
+    !room.isGroup && otherParticipants.length
+      ? otherParticipants[0].userId
+      : null;
+
+  const adminIds = room.participants
+    .filter((p: any) => p.role === "admin")
+    .map((p: any) => p.userId);
+
+  const groupMembers = room.participants.map((p: any) => ({
+    userId: p.userId,
+    fullName: `${p.first_Name} ${p.last_name}`,
+    profile_picture: p.profile_picture
+      ? `${process.env.PROFILE_URL}${p.profile_picture}`
+      : null,
+    isOnline: false,
+    unreadCount: p.unreadCount || 0,
+    role: p.role,
+    isAdmin: p.role === "admin"
+  }));
+
+  const type = (lastMsg?.messageType || "").toLowerCase();
+
+  const lastMessage =
+    type === MESSAGE_TYPES.Image
+      ? "Photo"
+      : type === MESSAGE_TYPES.Video
+        ? "Video"
+        : type === MESSAGE_TYPES.POLL
+          ? "Poll"
+          : type === MESSAGE_TYPES.System
+            ? lastMsg?.message
+            : lastMsg?.message || "";
+
+  return {
+    _id: room._id,
+    roomId: room.roomId,
+
+    isGroup: room.isGroup,
+    groupName: room.isGroup ? room.name : "",
+    groupImage: room.groupImage || null,
+
+    lastMessage,
+    lastMessageDate: lastMsg?.createdAt || null,
+    isEdited: lastMsg?.isEdited || false,
+
+    receiverName,
+    receiverUserId,
+    receiverProfilePath,
+
+    isOnline: false,
+    unreadCount: currentUserParticipant?.unreadCount || 0,
+
+    adminIds,
+
+    groupMembers: room.isGroup
+      ? groupMembers
+      : undefined,
+
+    reaction: lastMsg?.reactions || [],
+
+    chatRequestStatus: room.chatRequestStatus,
+    chatRequestSenderId: room.chatRequestSenderId
+  };
 };
