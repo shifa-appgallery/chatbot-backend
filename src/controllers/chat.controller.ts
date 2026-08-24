@@ -2700,6 +2700,14 @@ export const updateProfileImage = async (
     }
 
     // =========================
+    // FORMAT PROFILE IMAGE URL
+    // =========================
+
+    const finalProfileImage = profileImage.startsWith("https://")
+      ? profileImage
+      : `${process.env.PROFILE_URL}${profileImage}`;
+
+    // =========================
     // UPDATE CHAT ROOM PROFILE
     // =========================
 
@@ -2709,7 +2717,8 @@ export const updateProfileImage = async (
       },
       {
         $set: {
-          "participants.$[participant].profile_picture": profileImage
+          "participants.$[participant].profile_picture":
+            finalProfileImage
         }
       },
       {
@@ -2731,7 +2740,7 @@ export const updateProfileImage = async (
       },
       {
         $set: {
-          senderProfile: profileImage
+          senderProfile: finalProfileImage
         }
       }
     );
@@ -2740,7 +2749,7 @@ export const updateProfileImage = async (
       status: true,
       message: "Profile image updated successfully",
       data: {
-        profileImage,
+        profileImage: finalProfileImage,
         chatRoomsUpdated: roomResult.modifiedCount,
         messagesUpdated: messageResult.modifiedCount
       }
