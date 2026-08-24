@@ -95,5 +95,8 @@ router.get("/get-user-requests", authorize, chatController.getUserRequests);
 
 router.delete("/delete-group", authorize, chatController.deleteGroup);
 
+router.post("/update-profile-image",authorize,chatController.updateProfileImage
+);
+
 
 export default router;

@@ -2682,3 +2682,79 @@ const getProfileUrl = (path?: string | null) => {
     ? path
     : `${process.env.PROFILE_URL}${path}`;
 };
+
+export const updateProfileImage = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const userId = String(req.user!.id);
+
+    const { profileImage } = req.body;
+
+    if (!profileImage) {
+      return res.status(400).json({
+        status: false,
+        message: "profileImage is required"
+      });
+    }
+
+    // =========================
+    // UPDATE CHAT ROOM PROFILE
+    // =========================
+
+    const roomResult = await ChatRoom.updateMany(
+      {
+        "participants.userId": userId
+      },
+      {
+        $set: {
+          "participants.$[participant].profile_picture": profileImage
+        }
+      },
+      {
+        arrayFilters: [
+          {
+            "participant.userId": userId
+          }
+        ]
+      }
+    );
+
+    // =========================
+    // UPDATE MESSAGE PROFILE
+    // =========================
+
+    const messageResult = await Messages.updateMany(
+      {
+        senderId: userId
+      },
+      {
+        $set: {
+          senderProfile: profileImage
+        }
+      }
+    );
+
+    return res.status(200).json({
+      status: true,
+      message: "Profile image updated successfully",
+      data: {
+        profileImage,
+        chatRoomsUpdated: roomResult.modifiedCount,
+        messagesUpdated: messageResult.modifiedCount
+      }
+    });
+
+  } catch (err) {
+    console.error(
+      "updateProfileImage error:",
+      err
+    );
+
+    return res.status(500).json({
+      status: false,
+      message: "Internal server error"
+    });
+  }
+};
