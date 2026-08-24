@@ -2689,7 +2689,7 @@ export const updateProfileImage = async (
 ) => {
   try {
     const userId = String(req.user!.id);
-
+console.log("updateProfileImage...")
     const { profileImage } = req.body;
 
     if (!profileImage) {
@@ -2710,6 +2710,8 @@ export const updateProfileImage = async (
     // =========================
     // UPDATE CHAT ROOM PROFILE
     // =========================
+console.log("finalProfileImage...",finalProfileImage)
+
 
     const roomResult = await ChatRoom.updateMany(
       {
