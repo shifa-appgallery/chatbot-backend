@@ -15,6 +15,7 @@ import Messages from "../models/Messages";
 import { sendNotification } from "../utils/sendPush";
 import { Server } from "socket.io";
 import { Fcm } from "../models/mysql/Fcm";
+import StarredMessage from "../models/StarredMessage";
 
 export const createRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -316,7 +317,8 @@ export const sendMessage = async (
       caption,
       messageType,
       mediaUrl,
-      replyMessageId
+      replyMessageId,
+      sharedContent
     } = req.body;
 
     const senderId = String(req.user!.id);
@@ -385,9 +387,8 @@ export const sendMessage = async (
       caption,
       messageType,
       mediaUrl,
-
+      sharedContent,
       deliveredTo,
-
       senderName:
         `${user?.first_name} ${user?.last_name}`,
 
@@ -470,6 +471,15 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     const joinedAt = participant.joinedAt || new Date(0);
 
+    // GET PINNED MESSAGE
+    const pinnedMessage = await Message.findOne({
+      roomId,
+      isPinned: true
+    })
+      .select(
+        "_id message caption messageType mediaUrl senderId senderName senderProfile pinnedAt pinnedBy createdAt"
+      );
+
     const userMap = new Map();
     room.participants.forEach((p: any) => {
       userMap.set(String(p.userId), {
@@ -520,6 +530,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
     if (!distinctDates.length) {
       return res.json({
         status: true,
+        pinnedMessage,
         data: [],
         nextCursor: null
       });
@@ -548,6 +559,24 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       createdAt: { $gte: joinedAt },
       $or: dateFilters
     }).sort({ createdAt: -1 }); // latest first
+
+    const messageIds = messages.map(
+      (msg: any) => msg._id
+    );
+
+    const starredMessages = await StarredMessage.find({
+      userId,
+      messageId: {
+        $in: messageIds
+      }
+    }).select("messageId");
+
+
+    const starredMessageIds = new Set(
+      starredMessages.map(
+        (item: any) => String(item.messageId)
+      )
+    );
 
     // 🔹 Format messages
     const formattedMessages = messages.map((msg: any) => {
@@ -615,6 +644,10 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
       return {
         ...msg.toObject(),
+        isStarred:
+          starredMessageIds.has(
+            String(msg._id)
+          ),
         senderName:
           msg.senderName ||
           sender?.fullName ||
@@ -648,6 +681,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
     return res.json({
       status: true,
+      pinnedMessage,
       data: formattedMessages.reverse(),
       nextCursor
     });
@@ -2689,8 +2723,6 @@ export const updateProfileImage = async (
 ) => {
   try {
     const userId = String(req.user!.id);
-    console.log("userId", userId)
-    console.log("updateProfileImage...")
     const { profileImage } = req.body;
 
     if (!profileImage) {
@@ -2711,8 +2743,6 @@ export const updateProfileImage = async (
     // =========================
     // UPDATE CHAT ROOM PROFILE
     // =========================
-    console.log("finalProfileImage...", finalProfileImage)
-
 
     const roomResult = await ChatRoom.updateMany(
       {
@@ -2732,7 +2762,6 @@ export const updateProfileImage = async (
         ]
       }
     );
-    console.log("roomResult", roomResult)
     // =========================
     // UPDATE MESSAGE PROFILE
     // =========================
@@ -2747,7 +2776,6 @@ export const updateProfileImage = async (
         }
       }
     );
-    console.log("messageResult", messageResult)
 
     return res.status(200).json({
       status: true,
@@ -2770,4 +2798,59 @@ export const updateProfileImage = async (
       message: "Internal server error"
     });
   }
+};
+
+export const getStarredMessages = async (
+  req: AuthRequest,
+  res: Response
+) => {
+
+  try {
+
+    const userId = String(req.user!.id);
+
+    const { roomId } = req.query;
+
+    const filter: any = {
+      userId
+    };
+
+
+    if (roomId) {
+      filter.roomId = new mongoose.Types.ObjectId(
+        roomId as string
+      );
+    }
+
+
+    const starredMessages =
+      await StarredMessage.find(filter)
+        .populate({
+          path: "messageId",
+          model: "Messages"
+        })
+        .sort({
+          starredAt: -1
+        });
+
+
+    return res.json({
+      status: true,
+      data: starredMessages
+    });
+
+
+  } catch (error) {
+
+    console.error(
+      "getStarredMessages error:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Internal server error"
+    });
+
+  }
+
 };

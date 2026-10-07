@@ -9,6 +9,7 @@ import mongoose from "mongoose";
 import { MESSAGE_TYPES } from "../constant/enum";
 import { Fcm } from "../models/mysql/Fcm";
 import { Op } from "sequelize";
+import StarredMessage from "../models/StarredMessage";
 
 interface SendMessagePayload {
   roomId: string;
@@ -1542,6 +1543,171 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     } catch (err) {
       console.error("react_message error:", err);
     }
+  }
+  );
+
+  socket.on("toggle_star_message", async ({
+    messageId
+  }: {
+    messageId: string;
+  }) => {
+
+    try {
+      const userId = String(socket.user?._id);
+
+      const message = await Messages.findById(messageId);
+
+      if (!message) {
+        return socket.emit("message_error", {
+          message: "Message not found"
+        });
+      }
+
+
+      const existingStar =
+        await StarredMessage.findOne({
+          userId,
+          messageId
+        });
+
+
+      // UNSTAR
+      if (existingStar) {
+
+        await StarredMessage.deleteOne({
+          _id: existingStar._id
+        });
+
+
+        io.to(message.roomId.toString())
+          .emit("message_star_updated", {
+            messageId,
+            userId,
+            isStarred: false
+          });
+
+        return;
+      }
+
+
+      // STAR
+      const starredMessage =
+        await StarredMessage.create({
+          userId,
+          messageId,
+          roomId: message.roomId
+        });
+
+
+      io.to(message.roomId.toString())
+        .emit("message_star_updated", {
+          messageId,
+          userId,
+          isStarred: true,
+          starredAt: starredMessage.starredAt
+        });
+
+
+    } catch (error) {
+
+      console.error(
+        "toggle_star_message error:",
+        error
+      );
+
+    }
+  }
+  );
+
+  socket.on("toggle_pin_message", async ({
+    roomId,
+    messageId
+  }: {
+    roomId: string;
+    messageId: string;
+  }) => {
+
+    try {
+
+      const userId = String(socket.user?._id);
+
+      const message = await Messages.findById(messageId);
+
+      if (!message) {
+        return;
+      }
+
+      // If clicked message is already pinned -> unpin it
+      if (message.isPinned) {
+
+        await Messages.findByIdAndUpdate(
+          messageId,
+          {
+            $set: {
+              isPinned: false,
+              pinnedAt: null,
+              pinnedBy: null
+            }
+          }
+        );
+
+        io.to(roomId).emit("message_pin_updated", {
+          roomId,
+          messageId,
+          isPinned: false
+        });
+
+        return;
+      }
+
+      // Unpin currently pinned message in this room
+      const oldPinned = await Messages.findOne({
+        roomId,
+        isPinned: true
+      });
+
+      if (oldPinned) {
+
+        await Messages.findByIdAndUpdate(
+          oldPinned._id,
+          {
+            $set: {
+              isPinned: false,
+              pinnedAt: null,
+              pinnedBy: null
+            }
+          }
+        );
+      }
+
+      // Pin new message
+      await Messages.findByIdAndUpdate(
+        messageId,
+        {
+          $set: {
+            isPinned: true,
+            pinnedAt: new Date(),
+            pinnedBy: userId
+          }
+        }
+      );
+
+      io.to(roomId).emit("message_pin_updated", {
+        roomId,
+        oldPinnedMessageId: oldPinned?._id ?? null,
+        messageId,
+        isPinned: true
+      });
+
+    } catch (err) {
+
+      console.error(
+        "toggle_pin_message error:",
+        err
+      );
+
+    }
+
   }
   );
 

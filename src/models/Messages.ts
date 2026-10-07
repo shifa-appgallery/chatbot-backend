@@ -168,10 +168,58 @@ const messageSchema = new mongoose.Schema({
     mediaUrl: String
   },
 
+  isPinned: {
+    type: Boolean,
+    default: false
+  },
+
+  pinnedAt: {
+    type: Date,
+    default: null
+  },
+
+  pinnedBy: {
+    type: String,
+    default: null
+  },
+
   isForwarded: {
     type: Boolean,
     default: false
   },
+
+  sharedContent: {
+    type: {
+      type: String,
+      required: true
+    },
+
+    typeId: {
+      type: String,
+      default: null
+    },
+
+    Title: {
+      type: String,
+      default: ""
+    },
+
+    Description: {
+      type: String,
+      default: ""
+    },
+
+    PhotoUrl: {
+      type: String,
+      default: null
+    },
+
+    MediaType: {
+      type: String,
+      enum: ["photo", "video"],
+      required: true
+    }
+  }
 
 }, { timestamps: true });
 

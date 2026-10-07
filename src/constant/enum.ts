@@ -6,5 +6,6 @@ export const MESSAGE_TYPES = {
   Video: "video",
   FEED: "feed",
   POLL:"poll", 
-  System: "system"
+  System: "system",
+  Shared_content:"shared_content"
 } as const;
