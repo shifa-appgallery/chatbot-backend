@@ -10,7 +10,7 @@ const starredMessageSchema = new mongoose.Schema({
   messageId: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: "Messages"
+    ref: "Message"
   },
 
   roomId: {
