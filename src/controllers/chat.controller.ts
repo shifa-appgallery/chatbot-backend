@@ -2817,14 +2817,13 @@ export const getStarredMessages = async (
 
     const userId = String(req.user!.id);
 
-
     const starredMessages =
       await StarredMessage.find({
         userId
       })
         .populate({
           path: "messageId",
-          model: "Messages"
+          model: "Message"
         })
         .sort({
           starredAt: -1
@@ -2843,7 +2842,6 @@ export const getStarredMessages = async (
       "getStarredMessages error:",
       error
     );
-
 
     return res.status(500).json({
       status: false,
