@@ -2813,27 +2813,15 @@ export const getStarredMessages = async (
   req: AuthRequest,
   res: Response
 ) => {
-
   try {
 
     const userId = String(req.user!.id);
 
-    const { roomId } = req.query;
-
-    const filter: any = {
-      userId
-    };
-
-
-    if (roomId) {
-      filter.roomId = new mongoose.Types.ObjectId(
-        roomId as string
-      );
-    }
-
 
     const starredMessages =
-      await StarredMessage.find(filter)
+      await StarredMessage.find({
+        userId
+      })
         .populate({
           path: "messageId",
           model: "Messages"
@@ -2843,7 +2831,7 @@ export const getStarredMessages = async (
         });
 
 
-    return res.json({
+    return res.status(200).json({
       status: true,
       data: starredMessages
     });
@@ -2856,10 +2844,11 @@ export const getStarredMessages = async (
       error
     );
 
+
     return res.status(500).json({
+      status: false,
       message: "Internal server error"
     });
 
   }
-
 };

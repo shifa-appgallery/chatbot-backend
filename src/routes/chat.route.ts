@@ -98,5 +98,8 @@ router.delete("/delete-group", authorize, chatController.deleteGroup);
 router.post("/update-profile-image",authorize,chatController.updateProfileImage
 );
 
+router.get("/get-starred-message",authorize,chatController.getStarredMessages
+);
+
 
 export default router;
