@@ -28,6 +28,14 @@ interface SendMessagePayload {
 
     allowMultipleAnswers: boolean;
   },
+  sharedContent?: {
+    type: string;
+    typeId?: string;
+    Title: string;
+    Description: string;
+    PhotoUrl?: string;
+    MediaType: "photo" | "video";
+  };
   replyMessageId?: string;
 
   isForwarded?: boolean;
@@ -83,7 +91,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     });
   })();
 
-  socket.on("send_message", async ({ roomId, message, caption, messageType, mediaUrl, poll, replyMessageId, isForwarded = false, mentions = [] }: SendMessagePayload) => {
+  socket.on("send_message", async ({ roomId, message, caption, messageType, mediaUrl, poll, sharedContent, replyMessageId, isForwarded = false, mentions = [] }: SendMessagePayload) => {
     try {
       const senderId = String(socket.user?._id);
       const room = await ChatRooms.findById(roomId);
@@ -283,6 +291,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           messageType || "text",
         mediaUrl:
           mediaUrl || null,
+        sharedContent,
         senderName,
         senderProfile,
         isForwarded,
@@ -319,9 +328,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 : "Video"
               : messageType === MESSAGE_TYPES.POLL
                 ? `${poll?.question || "Poll"}`
-                : messageType === MESSAGE_TYPES.System
-                  ? message
-                  : message
+                : messageType === MESSAGE_TYPES.SharedContent
+                  ? "Shared content"
+                  : messageType === MESSAGE_TYPES.System
+                    ? message
+                    : message
       };
       // =========================
       // RECEIVERS
@@ -400,9 +411,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                   : messageType ===
                     MESSAGE_TYPES.POLL
                     ? `${poll?.question || "Poll"}`
-                    : messageType === MESSAGE_TYPES.System
-                      ? message
-                      : message,
+                    : messageType === MESSAGE_TYPES.SharedContent
+                      ? "Shared content"
+                      : messageType === MESSAGE_TYPES.System
+                        ? message
+                        : message,
 
             senderId,
             createdAt:
@@ -574,16 +587,15 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             )
           ) {
             displayMessage =
-              messageType ===
-                MESSAGE_TYPES.Image
+              messageType === MESSAGE_TYPES.Image
                 ? `${senderName} replied with a photo`
-                : messageType ===
-                  MESSAGE_TYPES.Video
+                : messageType === MESSAGE_TYPES.Video
                   ? `${senderName} replied with a video`
-                  : messageType ===
-                    MESSAGE_TYPES.POLL
+                  : messageType === MESSAGE_TYPES.POLL
                     ? `${senderName} replied with a poll`
-                    : `${senderName} replied: ${textContent}`;
+                    : messageType === MESSAGE_TYPES.SharedContent
+                      ? `${senderName} shared content`
+                      : `${senderName} replied: ${textContent}`;
           }
 
           // MENTION NOTIFICATION
@@ -659,13 +671,19 @@ export default (socket: AuthenticatedSocket, io: Server) => {
                 ? caption
                   ? `${senderName} replied: ${caption}`
                   : `${senderName} replied with a photo`
+
                 : messageType === MESSAGE_TYPES.Video
                   ? caption
                     ? `${senderName} replied: ${caption}`
                     : `${senderName} replied with a video`
+
                   : messageType === MESSAGE_TYPES.POLL
                     ? `${senderName} replied with a poll`
-                    : `${senderName} replied: ${textContent}`;
+
+                    : messageType === MESSAGE_TYPES.SharedContent
+                      ? `${senderName} shared content`
+
+                      : `${senderName} replied: ${textContent}`;
           }
 
           // MENTION PUSH
@@ -866,6 +884,14 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     message?: string;
     caption?: string;
     mediaUrl?: string;
+    sharedContent?: {
+      type: string;
+      typeId?: string;
+      Title: string;
+      Description: string;
+      PhotoUrl?: string;
+      MediaType: "photo" | "video";
+    };
     mentions?: {
       userId: string;
       userName: string;
@@ -902,7 +928,11 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         existingMessage.messageType === MESSAGE_TYPES.Image ||
           existingMessage.messageType === MESSAGE_TYPES.Video
           ? caption || ""
-          : message || "";
+
+          : existingMessage.messageType === MESSAGE_TYPES.SharedContent
+            ? message || ""
+
+            : message || "";
       // =========================
       // ONLY SENDER CAN EDIT
       // =========================
@@ -943,14 +973,23 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       }
 
       const oldMessage =
-        existingMessage.messageType === MESSAGE_TYPES.Image ||
-          existingMessage.messageType === MESSAGE_TYPES.Video
+        existingMessage.messageType === MESSAGE_TYPES.Image
           ? existingMessage.caption
             ? `Photo: ${existingMessage.caption}`
-            : existingMessage.messageType === MESSAGE_TYPES.Image
-              ? "Photo"
+            : "Photo"
+
+          : existingMessage.messageType === MESSAGE_TYPES.Video
+            ? existingMessage.caption
+              ? `Video: ${existingMessage.caption}`
               : "Video"
-          : existingMessage.message;
+
+            : existingMessage.messageType === MESSAGE_TYPES.POLL
+              ? "Poll"
+
+              : existingMessage.messageType === MESSAGE_TYPES.SharedContent
+                ? "Shared content"
+
+                : existingMessage.message;
 
       // =========================
       // MENTION VALIDATION
@@ -1148,7 +1187,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             : updatedMessage.messageType === MESSAGE_TYPES.POLL
               ? updatedMessage.poll?.question || "Poll"
 
-              : updatedMessage.message;
+              : updatedMessage.messageType === MESSAGE_TYPES.SharedContent
+                ? "Shared content"
+
+                : updatedMessage.message;
 
       // =========================
       // UPDATE LAST MESSAGE

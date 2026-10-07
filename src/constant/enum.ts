@@ -7,5 +7,5 @@ export const MESSAGE_TYPES = {
   FEED: "feed",
   POLL:"poll", 
   System: "system",
-  Shared_content:"shared_content"
+  SharedContent:"shared_content"
 } as const;

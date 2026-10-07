@@ -414,9 +414,11 @@ export const sendMessage = async (
           ? "Video"
           : type === MESSAGE_TYPES.POLL
             ? "Poll"
-            : messageType === MESSAGE_TYPES.System
-              ? message
-              : message;
+            : type === MESSAGE_TYPES.SharedContent
+              ? "Shared content"
+              : messageType === MESSAGE_TYPES.System
+                ? message
+                : message;
 
     await ChatRoom.findByIdAndUpdate(
       roomId,
@@ -799,8 +801,13 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
             ? "Photo"
             : type === MESSAGE_TYPES.Video
               ? "Video"
-              : type === MESSAGE_TYPES.Video ? "Poll " : type === MESSAGE_TYPES.System
-                ? lastMsg?.message : lastMsg?.message || ""
+              : type === MESSAGE_TYPES.POLL
+                ? "Poll"
+                : type === MESSAGE_TYPES.SharedContent
+                  ? "Shared content"
+                  : type === MESSAGE_TYPES.System
+                    ? lastMsg?.message
+                    : lastMsg?.message || "";
 
         return {
           _id: room._id,
@@ -2673,9 +2680,11 @@ export const formatChatRoom = async (
         ? "Video"
         : type === MESSAGE_TYPES.POLL
           ? "Poll"
-          : type === MESSAGE_TYPES.System
-            ? lastMsg?.message
-            : lastMsg?.message || "";
+          : type === MESSAGE_TYPES.SharedContent
+            ? "Shared content"
+            : type === MESSAGE_TYPES.System
+              ? lastMsg?.message
+              : lastMsg?.message || "";
 
   return {
     _id: room._id,
