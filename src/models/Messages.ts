@@ -191,7 +191,7 @@ const messageSchema = new mongoose.Schema({
   sharedContent: {
     type: {
       type: String,
-      required: true
+      required: false
     },
 
     typeId: {
