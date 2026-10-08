@@ -1675,55 +1675,71 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
       const message = await Messages.findById(messageId);
 
-      if (!message) {
-        return;
-      }
+      if (!message) return;
 
-      // If clicked message is already pinned -> unpin it
+
+      // Get room participants for names/profile
+      const room: any = await ChatRooms.findById(roomId);
+
+      if (!room) return;
+
+
+      const userMap = new Map();
+
+      room.participants.forEach((p: any) => {
+        userMap.set(String(p.userId), {
+          fullName: `${p.first_Name} ${p.last_name}`,
+          profile_picture: p.profile_picture || null
+        });
+      });
+
+
+      // UNPIN
       if (message.isPinned) {
 
-        await Messages.findByIdAndUpdate(
-          messageId,
-          {
-            $set: {
-              isPinned: false,
-              pinnedAt: null,
-              pinnedBy: null
-            }
+        await Messages.findByIdAndUpdate(messageId, {
+          $set: {
+            isPinned: false,
+            pinnedAt: null,
+            pinnedBy: null
           }
-        );
+        });
+
 
         io.to(roomId).emit("message_pin_updated", {
           roomId,
-          messageId,
-          isPinned: false
+
+          pinnedMessage: {
+            ...message.toObject(),
+            isPinned: false,
+            pinnedAt: null,
+            pinnedBy: null,
+            pinnedByName: null
+          }
         });
 
         return;
       }
 
-      // Unpin currently pinned message in this room
-      const oldPinned = await Messages.findOne({
-        roomId,
-        isPinned: true
-      });
 
-      if (oldPinned) {
-
-        await Messages.findByIdAndUpdate(
-          oldPinned._id,
-          {
-            $set: {
-              isPinned: false,
-              pinnedAt: null,
-              pinnedBy: null
-            }
+      // Remove old pinned message
+      await Messages.updateOne(
+        {
+          roomId,
+          isPinned: true
+        },
+        {
+          $set: {
+            isPinned: false,
+            pinnedAt: null,
+            pinnedBy: null
           }
-        );
-      }
+        }
+      );
+
 
       // Pin new message
-      await Messages.findByIdAndUpdate(
+      const updatedMessage = await Messages.findByIdAndUpdate(
         messageId,
         {
           $set: {
@@ -1731,15 +1747,54 @@ export default (socket: AuthenticatedSocket, io: Server) => {
             pinnedAt: new Date(),
             pinnedBy: userId
           }
+        },
+        {
+          new: true
         }
       );
 
+
+      if (!updatedMessage) return;
+
+
+      const sender = userMap.get(
+        String(updatedMessage.senderId)
+      );
+
+      const pinnedBy = userMap.get(
+        String(userId)
+      );
+
+
+      const pinnedMessage = {
+        ...updatedMessage.toObject(),
+
+        senderName:
+          updatedMessage.senderName ||
+          sender?.fullName ||
+          "Unknown",
+
+        senderProfile:
+          updatedMessage.senderProfile
+            ? updatedMessage.senderProfile
+            : sender?.profile_picture
+              ? sender.profile_picture.startsWith("http")
+                ? sender.profile_picture
+                : `${process.env.PROFILE_URL}${sender.profile_picture}`
+              : null,
+
+        pinnedByName:
+          pinnedBy?.fullName || "Unknown",
+
+        isPinned: false
+      };
+
+
       io.to(roomId).emit("message_pin_updated", {
         roomId,
-        oldPinnedMessageId: oldPinned?._id ?? null,
-        messageId,
-        isPinned: true
+        pinnedMessage
       });
+
 
     } catch (err) {
 
@@ -1750,8 +1805,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
     }
 
-  }
-  );
+  });
 
   socket.on("vote_poll", async ({ messageId, optionId }: {
     messageId: string;

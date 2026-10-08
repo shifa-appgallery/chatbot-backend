@@ -474,13 +474,52 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
     const joinedAt = participant.joinedAt || new Date(0);
 
     // GET PINNED MESSAGE
-    const pinnedMessage = await Message.findOne({
+    // GET PINNED MESSAGE
+    let pinnedMessage: any = await Message.findOne({
       roomId,
       isPinned: true
     })
       .select(
-        "_id message caption messageType mediaUrl senderId senderName senderProfile pinnedAt pinnedBy createdAt"
+        "_id message caption messageType mediaUrl senderId senderName senderProfile pinnedAt pinnedBy createdAt isPinned"
+      )
+      .lean();
+
+
+    if (pinnedMessage) {
+
+      const pinnedByUser = room.participants.find(
+        (p: any) => String(p.userId) === String(pinnedMessage.pinnedBy)
       );
+
+      pinnedMessage = {
+        ...pinnedMessage,
+
+        pinnedByName: pinnedByUser
+          ? `${pinnedByUser.first_Name} ${pinnedByUser.last_name}`
+          : "Unknown",
+
+        senderName:
+          pinnedMessage.senderName ||
+          (() => {
+            const sender = room.participants.find(
+              (p: any) => String(p.userId) === String(pinnedMessage.senderId)
+            );
+
+            return sender
+              ? `${sender.first_Name} ${sender.last_name}`
+              : "Unknown";
+          })(),
+
+        senderProfile: pinnedMessage.senderProfile
+          ? pinnedMessage.senderProfile.startsWith("http")
+            ? pinnedMessage.senderProfile
+            : `${process.env.PROFILE_URL}${pinnedMessage.senderProfile}`
+          : null,
+
+        // frontend display purpose
+        isPinned: false
+      };
+    }
 
     const userMap = new Map();
     room.participants.forEach((p: any) => {
