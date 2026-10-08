@@ -2853,39 +2853,39 @@ export const getStarredMessages = async (
   res: Response
 ) => {
   try {
-
     const userId = String(req.user!.id);
+    const { roomId } = req.query;
 
-    const starredMessages =
-      await StarredMessage.find({
-        userId
+    const starredMessages = await StarredMessage.find({
+      userId
+    })
+      .populate({
+        path: "messageId",
+        model: "Message",
+        match: roomId
+          ? { roomId: new mongoose.Types.ObjectId(roomId as string) }
+          : {},
       })
-        .populate({
-          path: "messageId",
-          model: "Message"
-        })
-        .sort({
-          starredAt: -1
-        });
+      .sort({
+        starredAt: -1
+      });
 
+    // Remove records whose populated message didn't match the room
+    const filteredMessages = starredMessages.filter(
+      (item) => item.messageId
+    );
 
     return res.status(200).json({
       status: true,
-      data: starredMessages
+      data: filteredMessages
     });
 
-
   } catch (error) {
-
-    console.error(
-      "getStarredMessages error:",
-      error
-    );
+    console.error("getStarredMessages error:", error);
 
     return res.status(500).json({
       status: false,
       message: "Internal server error"
     });
-
   }
 };
