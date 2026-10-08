@@ -517,7 +517,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
           : null,
 
         // frontend display purpose
-        isPinned: pinnedMessage.isPinned
+        isPinned: pinnedMessage.isPinned ?? false
       };
     }
 

@@ -1792,7 +1792,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
         createdAt: updatedMessage.createdAt,
 
-        isPinned: updatedMessage.isPinned,
+        isPinned: updatedMessage.isPinned ?? false,
 
         pinnedAt: updatedMessage.pinnedAt,
 
