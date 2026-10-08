@@ -530,10 +530,20 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
     });
 
     // 🔹 Anchor date
-    const anchorDate =
-      lastDate && lastDate !== 'null'
-        ? new Date(lastDate as string)
-        : new Date();
+    let anchorDate: Date;
+
+    if (lastDate && lastDate !== "null") {
+      // Pagination call
+      anchorDate = new Date(lastDate as string);
+    } else if (pinnedMessage) {
+      // First load + pinned message exists
+      anchorDate = new Date(pinnedMessage.createdAt);
+      // add small buffer so pinned message date is included
+      anchorDate.setMilliseconds(anchorDate.getMilliseconds() + 1);
+    } else {
+      // First load + no pinned message
+      anchorDate = new Date();
+    }
 
     const distinctDates = await Message.aggregate([
       {
