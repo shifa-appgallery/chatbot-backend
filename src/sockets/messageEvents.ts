@@ -1767,7 +1767,12 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
 
       const pinnedMessage = {
-        ...updatedMessage.toObject(),
+        _id: updatedMessage._id,
+        senderId: updatedMessage.senderId,
+        message: updatedMessage.message,
+        caption: updatedMessage.caption || "",
+        messageType: updatedMessage.messageType,
+        mediaUrl: updatedMessage.mediaUrl || null,
 
         senderName:
           updatedMessage.senderName ||
@@ -1776,17 +1781,25 @@ export default (socket: AuthenticatedSocket, io: Server) => {
 
         senderProfile:
           updatedMessage.senderProfile
-            ? updatedMessage.senderProfile
+            ? updatedMessage.senderProfile.startsWith("http")
+              ? updatedMessage.senderProfile
+              : `${process.env.PROFILE_URL}${updatedMessage.senderProfile}`
             : sender?.profile_picture
               ? sender.profile_picture.startsWith("http")
                 ? sender.profile_picture
                 : `${process.env.PROFILE_URL}${sender.profile_picture}`
               : null,
 
-        pinnedByName:
-          pinnedBy?.fullName || "Unknown",
+        createdAt: updatedMessage.createdAt,
 
-        isPinned: false
+        isPinned: updatedMessage.isPinned,
+
+        pinnedAt: updatedMessage.pinnedAt,
+
+        pinnedBy: updatedMessage.pinnedBy,
+
+        pinnedByName:
+          pinnedBy?.fullName || "Unknown"
       };
 
 
