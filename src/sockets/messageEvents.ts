@@ -1774,6 +1774,8 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         messageType: updatedMessage.messageType,
         mediaUrl: updatedMessage.mediaUrl || null,
 
+        sharedContent: updatedMessage.sharedContent || null,
+
         senderName:
           updatedMessage.senderName ||
           sender?.fullName ||
