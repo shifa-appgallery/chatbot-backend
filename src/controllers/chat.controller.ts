@@ -545,6 +545,12 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       anchorDate = new Date();
     }
 
+    const isFirstLoad = !lastDate || lastDate === "null";
+
+    // First load with pinned message: fetch all dates from today
+    // back to the pinned message's date.
+    // Pagination calls: retain the existing days-based behavior.
+
     const distinctDates = await Message.aggregate([
       {
         $match: {
@@ -561,7 +567,10 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       {
         $project: {
           date: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$createdAt"
+            }
           }
         }
       },
@@ -573,10 +582,13 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       {
         $sort: { _id: -1 }
       },
-      {
-        $limit: limitDays
-      }
+      ...(
+        isFirstLoad && pinnedMessage
+          ? []
+          : [{ $limit: limitDays }]
+      )
     ]);
+
 
     if (!distinctDates.length) {
       return res.json({
