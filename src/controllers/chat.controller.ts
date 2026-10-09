@@ -530,22 +530,19 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
     });
 
     // 🔹 Anchor date
-    let anchorDate: Date;
-
-    if (lastDate && lastDate !== "null") {
-      // Pagination call
-      anchorDate = new Date(lastDate as string);
-    } else if (pinnedMessage) {
-      // First load + pinned message exists
-      anchorDate = new Date(pinnedMessage.createdAt);
-      // add small buffer so pinned message date is included
-      anchorDate.setMilliseconds(anchorDate.getMilliseconds() + 1);
-    } else {
-      // First load + no pinned message
-      anchorDate = new Date();
-    }
 
     const isFirstLoad = !lastDate || lastDate === "null";
+
+    let anchorDate: Date;
+
+    if (!isFirstLoad) {
+      // Pagination: keep existing behavior
+      anchorDate = new Date(lastDate as string);
+    } else {
+      // First load: fetch dates from today
+      anchorDate = new Date();
+      anchorDate.setDate(anchorDate.getDate() + 1);
+    }
 
     // First load with pinned message: fetch all dates from today
     // back to the pinned message's date.
