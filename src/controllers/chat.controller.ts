@@ -480,7 +480,7 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       isPinned: true
     })
       .select(
-        "_id message caption messageType mediaUrl senderId senderName senderProfile pinnedAt pinnedBy createdAt isPinned"
+        "_id message caption messageType mediaUrl sharedContent senderId senderName senderProfile pinnedAt pinnedBy createdAt isPinned"
       )
       .lean();
 
