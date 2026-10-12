@@ -789,6 +789,45 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
       "participants.userId": userId
     }).sort({ "lastMessage.createdAt": -1 });
 
+
+    const roomIds = rooms.map((room: any) => room._id);
+
+    const unreadCounts = await Message.aggregate([
+      {
+        $match: {
+          roomId: { $in: roomIds },
+          senderId: { $ne: userId },
+          readBy: {
+            $not: {
+              $elemMatch: {
+                userId: userId
+              }
+            }
+          },
+          isDeleted: false,
+          deletedFor: {
+            $not: {
+              $elemMatch: { userId }
+            }
+          }
+        }
+      },
+      {
+        $group: {
+          _id: "$roomId",
+          unreadCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const unreadCountMap = new Map(
+      unreadCounts.map((item: any) => [
+        String(item._id),
+        item.unreadCount
+      ])
+    );
+
+
     const formattedRoomsRaw = await Promise.all(
       rooms.map(async (room: any) => {
 
@@ -885,7 +924,7 @@ export const getMyRooms = async (req: AuthRequest, res: Response) => {
           receiverProfilePath,
 
           isOnline: false,
-          unreadCount: currentUserParticipant?.unreadCount || 0,
+          unreadCount: unreadCountMap.get(String(room._id)) || 0,
 
           adminIds,
 
