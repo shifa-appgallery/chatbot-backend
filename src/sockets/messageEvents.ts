@@ -306,6 +306,35 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           finalMentions
       });
 
+
+      console.log("[SEND_MESSAGE] Message saved:", {
+        messageId: String(msg._id),
+        roomId: String(msg.roomId),
+        messageType: msg.messageType,
+        hasSharedContent: Boolean(msg.sharedContent),
+        sharedContent: msg.sharedContent
+      });
+
+
+
+      console.log("[SEND_MESSAGE] Incoming payload:", {
+        senderId,
+        roomId: String(roomId),
+        messageType,
+        messageTypeNormalized: String(messageType || "text").toLowerCase(),
+        hasMessage: Boolean(message),
+        hasMediaUrl: Boolean(mediaUrl),
+        hasSharedContent: Boolean(sharedContent),
+        sharedContentType: typeof sharedContent,
+        sharedContentKeys:
+          sharedContent && typeof sharedContent === "object"
+            ? Object.keys(sharedContent)
+            : [],
+        sharedContent,
+        isForwarded
+      });
+
+
       // =========================
       // FORMATTED MESSAGE
       // =========================
