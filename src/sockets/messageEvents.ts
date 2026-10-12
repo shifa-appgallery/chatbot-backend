@@ -395,47 +395,58 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       // UPDATE ROOM
       // =========================
 
+      const lastMessageText =
+        messageType === MESSAGE_TYPES.Image
+          ? caption
+            ? `Photo: ${caption}`
+            : "Photo"
+          : messageType === MESSAGE_TYPES.Video
+            ? caption
+              ? `Video: ${caption}`
+              : "Video"
+            : messageType === MESSAGE_TYPES.POLL
+              ? `${poll?.question || "Poll"}`
+              : messageType === MESSAGE_TYPES.SharedContent
+                ? "Shared content"
+                : messageType === MESSAGE_TYPES.System
+                  ? message
+                  : message;
+
+      const roomUpdate: any = {
+        $set: {
+          lastMessage: {
+            text: lastMessageText,
+            senderId,
+            createdAt: new Date()
+          }
+        }
+      };
+
+      // System messages are included in unread counts.
+      // Increment only for offline users or users in another room.
+      if (usersToIncrementUnread.length > 0) {
+        roomUpdate.$inc = {
+          "participants.$[elem].unreadCount": 1
+        };
+      }
+
+      const updateOptions =
+        usersToIncrementUnread.length > 0
+          ? {
+            arrayFilters: [
+              {
+                "elem.userId": {
+                  $in: usersToIncrementUnread
+                }
+              }
+            ]
+          }
+          : {};
+
       await ChatRooms.findByIdAndUpdate(
         roomId,
-        {
-          lastMessage: {
-            text:
-              messageType === MESSAGE_TYPES.Image
-                ? caption
-                  ? `Photo: ${caption}`
-                  : "Photo"
-                : messageType === MESSAGE_TYPES.Video
-                  ? caption
-                    ? `Video: ${caption}`
-                    : "Video"
-                  : messageType ===
-                    MESSAGE_TYPES.POLL
-                    ? `${poll?.question || "Poll"}`
-                    : messageType === MESSAGE_TYPES.SharedContent
-                      ? "Shared content"
-                      : messageType === MESSAGE_TYPES.System
-                        ? message
-                        : message,
-
-            senderId,
-            createdAt:
-              new Date()
-          },
-
-          $inc: {
-            "participants.$[elem].unreadCount": 1
-          }
-        },
-        {
-          arrayFilters: [
-            {
-              "elem.userId": {
-                $in:
-                  usersToIncrementUnread
-              }
-            }
-          ]
-        }
+        roomUpdate,
+        updateOptions
       );
 
       const updatedRoom =
@@ -496,13 +507,18 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         formattedMsg,
       );
 
+      const senderUnreadCount =
+        updatedRoom?.participants.find(
+          (p: any) => String(p.userId) === senderId
+        )?.unreadCount ?? 0;
+
       socket.emit(
         "room_updated",
         {
           roomId,
           senderName,
           senderProfile,
-          unreadCount: 0,
+          unreadCount: senderUnreadCount,
           lastMessage:
             updatedRoom?.lastMessage?.text || "",
           lastMessageDate:
@@ -758,66 +774,71 @@ export default (socket: AuthenticatedSocket, io: Server) => {
   });
 
   socket.on("mark_read", async ({ roomId }: MarkReadPayload) => {
-    const userId = String(socket.user?._id);
+    try {
+      const userId = String(socket.user?._id);
 
-    const unreadMessages = await Messages.find(
-      {
-        roomId,
-        "readBy.userId": { $ne: userId }
-      },
-      { _id: 1 }
-    );
+      const unreadMessages = await Messages.find(
+        {
+          roomId,
+          senderId: { $ne: userId },
+          "readBy.userId": { $ne: userId },
+          isDeleted: false
+        },
+        { _id: 1 }
+      );
 
-    const messageIds = unreadMessages.map((m) =>
-      String(m._id)
-    );
+      const messageIds = unreadMessages.map((m) =>
+        String(m._id)
+      );
 
-    if (messageIds.length > 0) {
       const readAt = new Date();
 
-      await Messages.updateMany(
-        { _id: { $in: messageIds } },
-        {
-          $addToSet: {
-            readBy: {
-              userId,
-              readAt
+      // 1. Mark unread messages as read
+      if (messageIds.length > 0) {
+        await Messages.updateMany(
+          { _id: { $in: messageIds } },
+          {
+            $addToSet: {
+              readBy: {
+                userId,
+                readAt
+              }
             }
           }
-        }
-      );
+        );
 
-      const room = await ChatRooms.findById(roomId)
-        .select("participants lastMessage")
-        .lean();
+        const room = await ChatRooms.findById(roomId)
+          .select("participants")
+          .lean();
 
-      const currentUser = room?.participants?.find(
-        (p: any) =>
-          String(p.userId) === String(userId)
-      );
+        const currentUser = room?.participants?.find(
+          (p: any) => String(p.userId) === userId
+        );
 
-      const userProfile = currentUser?.profile_picture
-        ? currentUser.profile_picture.startsWith("http")
-          ? currentUser.profile_picture
-          : `${process.env.PROFILE_URL}${currentUser.profile_picture}`
-        : null;
+        const userProfile = currentUser?.profile_picture
+          ? currentUser.profile_picture.startsWith("http")
+            ? currentUser.profile_picture
+            : `${process.env.PROFILE_URL}${currentUser.profile_picture}`
+          : null;
 
-      socket.to(roomId.toString()).emit("messages_read", {
-        userId,
-        roomId,
-        messageIds,
-        readBy: [
-          {
-            userId,
-            readAt,
-            userName: currentUser
-              ? `${currentUser.first_Name} ${currentUser.last_name || ""}`.trim()
-              : "",
-            userProfile
-          }
-        ]
-      });
+        socket.to(roomId.toString()).emit("messages_read", {
+          userId,
+          roomId,
+          messageIds,
+          readBy: [
+            {
+              userId,
+              readAt,
+              userName: currentUser
+                ? `${currentUser.first_Name} ${currentUser.last_name || ""}`.trim()
+                : "",
+              userProfile
+            }
+          ]
+        });
+      }
 
+      // 2. ALWAYS reset the current user's unread counter
       await ChatRooms.findOneAndUpdate(
         {
           _id: roomId,
@@ -830,46 +851,42 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         }
       );
 
+      // 3. Fetch the updated room
       const updatedRoom = await ChatRooms.findById(roomId)
-        .select("participants lastMessage");
+        .select("participants lastMessage name groupImage")
+        .lean();
+
+      if (!updatedRoom) return;
+
+      // 4. Broadcast updated unread counts to connected users
+      const participantIds = updatedRoom.participants.map(
+        (p: any) => String(p.userId)
+      );
 
       const presenceList = await UserPresence.find({
-        userId: {
-          $in: updatedRoom?.participants.map(
-            (p: any) => String(p.userId)
-          )
-        }
+        userId: { $in: participantIds }
       });
 
       presenceList.forEach((presence) => {
-        const userParticipant =
-          updatedRoom?.participants.find(
-            (p: any) =>
-              String(p.userId) ===
-              String(presence.userId)
-          );
-
-        presence.socketIds?.forEach(
-          (socketId: string) => {
-            io.to(socketId).emit(
-              "room_updated",
-              {
-                roomId,
-                unreadCount:
-                  userParticipant?.unreadCount || 0,
-                lastMessage:
-                  updatedRoom?.lastMessage?.text || "",
-                lastMessageDate:
-                  updatedRoom?.lastMessage?.createdAt ||
-                  null,
-                groupName: updatedRoom?.name,
-                groupImage:
-                  updatedRoom?.groupImage
-              }
-            );
-          }
+        const userParticipant = updatedRoom.participants.find(
+          (p: any) =>
+            String(p.userId) === String(presence.userId)
         );
+
+        presence.socketIds?.forEach((socketId: string) => {
+          io.to(socketId).emit("room_updated", {
+            roomId,
+            unreadCount: userParticipant?.unreadCount || 0,
+            lastMessage: updatedRoom.lastMessage?.text || "",
+            lastMessageDate: updatedRoom.lastMessage?.createdAt || null,
+            groupName: updatedRoom.name,
+            groupImage: updatedRoom.groupImage
+          });
+        });
       });
+
+    } catch (error) {
+      console.error("mark_read error:", error);
     }
   });
 
