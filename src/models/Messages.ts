@@ -216,8 +216,17 @@ const messageSchema = new mongoose.Schema({
 
     MediaType: {
       type: String,
-      enum: ["photo", "video"],
-      default: null
+      enum: ["photo", "image", "video", null],
+      default: null,
+      set: (value: string | null) => {
+        if (typeof value !== "string") return value;
+
+        const normalized = value.toLowerCase().trim();
+
+        return normalized === "image"
+          ? "photo"
+          : normalized;
+      }
     }
   }
 
