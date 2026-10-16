@@ -480,12 +480,38 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
       isPinned: true
     })
       .select(
-        "_id message caption messageType mediaUrl sharedContent senderId senderName senderProfile pinnedAt pinnedBy createdAt isPinned"
+        "_id message caption messageType mediaUrl sharedContent poll senderId senderName senderProfile pinnedAt pinnedBy createdAt isPinned"
       )
       .lean();
 
 
     if (pinnedMessage) {
+
+      const pollWithUsers = pinnedMessage.poll
+        ? {
+          ...pinnedMessage.poll,
+          options: (pinnedMessage.poll.options || []).map((option: any) => ({
+            ...option,
+            votes: (option.votes || []).map((vote: any) => {
+              const voteUser = room.participants.find(
+                (p: any) => String(p.userId) === String(vote.userId)
+              );
+
+              return {
+                ...vote,
+                userName: voteUser
+                  ? `${voteUser.first_Name} ${voteUser.last_name}`
+                  : "Unknown",
+                userProfile: voteUser?.profile_picture
+                  ? voteUser.profile_picture.startsWith("http")
+                    ? voteUser.profile_picture
+                    : `${process.env.PROFILE_URL}${voteUser.profile_picture}`
+                  : null
+              };
+            })
+          }))
+        }
+        : null;
 
       const pinnedByUser = room.participants.find(
         (p: any) => String(p.userId) === String(pinnedMessage.pinnedBy)
@@ -493,6 +519,8 @@ export const getRoomMessages = async (req: AuthRequest, res: Response) => {
 
       pinnedMessage = {
         ...pinnedMessage,
+
+        poll: pollWithUsers,
 
         pinnedByName: pinnedByUser
           ? `${pinnedByUser.first_Name} ${pinnedByUser.last_name}`

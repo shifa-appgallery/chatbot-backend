@@ -1643,14 +1643,13 @@ export default (socket: AuthenticatedSocket, io: Server) => {
     try {
       const userId = String(socket.user?._id);
 
-      const message = await Messages.findById(messageId);
+      const message: any = await Messages.findById(messageId);
 
       if (!message) {
         return socket.emit("message_error", {
           message: "Message not found"
         });
       }
-
 
       const existingStar =
         await StarredMessage.findOne({
@@ -1671,7 +1670,13 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           .emit("message_star_updated", {
             messageId,
             userId,
-            isStarred: false
+            isStarred: false,
+            messageType: message.messageType,
+
+            poll:
+              message.messageType === MESSAGE_TYPES.POLL
+                ? message.poll || null
+                : null
           });
 
         return;
@@ -1692,7 +1697,13 @@ export default (socket: AuthenticatedSocket, io: Server) => {
           messageId,
           userId,
           isStarred: true,
-          starredAt: starredMessage.starredAt
+          starredAt: starredMessage.starredAt,
+          messageType: message.messageType,
+
+          poll:
+            message.messageType === MESSAGE_TYPES.POLL
+              ? message.poll || null
+              : null
         });
 
 
@@ -1704,8 +1715,7 @@ export default (socket: AuthenticatedSocket, io: Server) => {
       );
 
     }
-  }
-  );
+  });
 
   socket.on("toggle_pin_message", async ({
     roomId,
@@ -1821,6 +1831,10 @@ export default (socket: AuthenticatedSocket, io: Server) => {
         mediaUrl: updatedMessage.mediaUrl || null,
 
         sharedContent: updatedMessage.sharedContent || null,
+        poll:
+          updatedMessage.messageType === MESSAGE_TYPES.POLL
+            ? updatedMessage.poll || null
+            : null,
 
         senderName:
           updatedMessage.senderName ||
