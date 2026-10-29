@@ -5,77 +5,77 @@ import dotenv from "dotenv";
 dotenv.config();
 
 let sequelize: Sequelize;
-console.log(process.env.MYSQL_DB)
+console.log(process.env.MYSQL_DATABASE)
 console.log(process.env.MYSQL_USER)
 console.log(process.env.MYSQL_PASSWORD)
 
 
 
 export const connectWithSSH = async () => {
-  return new Promise<Sequelize>((resolve, reject) => {
-    const ssh = new Client();
+    return new Promise<Sequelize>((resolve, reject) => {
+        const ssh = new Client();
 
-    ssh.on("ready", () => {
-      console.log("✅ SSH connected");
+        ssh.on("ready", () => {
+            console.log("✅ SSH connected");
 
-      // Create local server (acts like tunnel)
-      const server = net.createServer((localSocket) => {
-        ssh.forwardOut(
-          localSocket.remoteAddress || String(process.env.MYSQL_HOST),
-          localSocket.remotePort || 0,
-          String(process.env.MYSQL_HOST),
-          3306,
-          (err, stream) => {
-            if (err) {
-              localSocket.destroy();
-              return;
-            }
-            localSocket.pipe(stream);
-            stream.pipe(localSocket);
-          }
-        );
-      });
-      const TUNNEL_PORT = Number(process.env.SSH_TUNNEL_PORT);
-      server.listen(TUNNEL_PORT, async () => {
-        console.log(`🚀 Tunnel running on port ${TUNNEL_PORT}`);
+            // Create local server (acts like tunnel)
+            const server = net.createServer((localSocket) => {
+                ssh.forwardOut(
+                    localSocket.remoteAddress || String(process.env.MYSQL_HOST),
+                    localSocket.remotePort || 0,
+                    String(process.env.MYSQL_HOST),
+                    Number(process.env.MYSQL_PORT),
+                    (err, stream) => {
+                        if (err) {
+                            localSocket.destroy();
+                            return;
+                        }
+                        localSocket.pipe(stream);
+                        stream.pipe(localSocket);
+                    }
+                );
+            });
+            const TUNNEL_PORT = Number(process.env.SSH_TUNNEL_PORT);
+            server.listen(TUNNEL_PORT, async () => {
+                console.log(`🚀 Tunnel running on port ${TUNNEL_PORT}`);
 
-        try {
-          sequelize = new Sequelize(
-            process.env.MYSQL_DB!,
-            process.env.MYSQL_USER!,
-            process.env.MYSQL_PASSWORD!,
-            {
-              host: "127.0.0.1",
-              port: Number(process.env.SSH_TUNNEL_PORT),
-              dialect: "mysql",
-              logging: false,
-            }
-          );
+                try {
+                    sequelize = new Sequelize(
+                        process.env.MYSQL_DATABASE!,
+                        process.env.MYSQL_USER!,
+                        process.env.MYSQL_PASSWORD!,
+                        {
+                            host: "127.0.0.1",
+                            port: Number(process.env.SSH_TUNNEL_PORT),
+                            dialect: "mysql",
+                            logging: false,
+                        }
+                    );
 
-          await sequelize.authenticate();
-          console.log("✅ MySQL connected via SSH");
+                    await sequelize.authenticate();
+                    console.log("✅ MySQL connected via SSH");
 
-          resolve(sequelize);
-        } catch (error) {
-          reject(error);
-        }
-      });
+                    resolve(sequelize);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        });
+
+        ssh.connect({
+            host: process.env.SSH_HOST!,
+            port: Number(process.env.SSH_PORT) || 22,
+            username: process.env.SSH_USER!,
+            password: process.env.SSH_PASSWORD!,
+        });
+
+        ssh.on("error", (err) => reject(err));
     });
-
-    ssh.connect({
-      host: process.env.SSH_HOST!,
-      port: Number(process.env.SSH_PORT) || 22,
-      username: process.env.SSH_USER!,
-      privateKey: require("fs").readFileSync(process.env.SSH_KEY_PATH!),
-    });
-
-    ssh.on("error", (err) => reject(err));
-  });
 };
 
 export const getSequelize = () => {
-  if (!sequelize) {
-    throw new Error("❌ Sequelize not initialized");
-  }
-  return sequelize;
+    if (!sequelize) {
+        throw new Error("❌ Sequelize not initialized");
+    }
+    return sequelize;
 };
